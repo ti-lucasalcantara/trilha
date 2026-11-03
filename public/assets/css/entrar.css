@@ -1,0 +1,70 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@500;600;700&display=swap');
+
+/* Define as cores da marca e personaliza os tokens públicos do Tabler. */
+:root {
+    --trilha-roxo: #7c3aed;
+    --trilha-roxo-destaque: #6924d5;
+    --trilha-laranja: #ffaa35;
+    --trilha-menta: #29ddb0;
+    --trilha-texto: #282238;
+    --trilha-texto-secundario: #777184;
+    --trilha-borda: #e8e4ee;
+    --tblr-primary: #7c3aed;
+    --tblr-primary-rgb: 124, 58, 237;
+    --tblr-font-sans-serif: Inter, sans-serif;
+}
+
+/* Organiza a estrutura geral da tela de entrada. */
+.pagina-entrada { margin: 0; background: #fff; color: var(--trilha-texto); font-family: Inter, sans-serif; -webkit-font-smoothing: antialiased; }
+.estrutura-entrada { min-height: 100vh; min-height: 100svh; display: grid; grid-template-columns: 1fr 1fr; }
+/* Apresenta a marca e sua ilustração decorativa. */
+.painel-marca { background: #291550; color: #fff; padding: 42px clamp(28px, 4.5vw, 84px) 30px; display: flex; flex-direction: column; position: relative; isolation: isolate; overflow: hidden; }
+.painel-marca::before { content: ''; position: absolute; z-index: -1; width: 640px; height: 640px; right: -280px; bottom: -340px; border: 1px solid #ffffff0d; border-radius: 50%; box-shadow: 0 0 0 70px #ffffff03, 0 0 0 140px #ffffff03, 0 0 0 210px #ffffff02; }
+.cabecalho-marca { display: flex; align-items: center; gap: 13px; font-size: 9px; font-weight: 500; letter-spacing: 1.6px; color: #d2c2eb; }
+.simbolo-marca { position: relative; width: 34px; height: 34px; display: grid; place-items: center; font: 600 29px/1 Sora, sans-serif; color: #fff; background: #7c3aed; border-radius: 10px; }
+.simbolo-marca span { position: absolute; width: 7px; height: 7px; border-radius: 50%; right: -2px; bottom: 0; background: var(--trilha-menta); }
+.conteudo-marca { margin: auto 0; padding: 65px 0 48px; }
+.chamada-marca { display: flex; align-items: center; gap: 8px; color: #d8c4f1; font-size: 11px; margin-bottom: 24px; }
+.chamada-marca > span { width: 6px; height: 6px; border-radius: 50%; background: var(--trilha-menta); }
+.painel-marca h1 { font: 600 clamp(32px, 3.5vw, 56px)/1.2 Sora, sans-serif; letter-spacing: -2px; margin: 0; }
+.painel-marca h1 > span { color: #bba0ff; }
+.descricao-marca { color: #c7b6de; font-size: 14px; line-height: 1.85; margin: 23px 0 0; }
+/* Representa visualmente as etapas de um processo. */
+.ilustracao-processo { position: relative; max-width: 390px; margin-top: 48px; padding-bottom: 4px; }
+.linha-fluxo { position: absolute; left: 27px; top: 35px; bottom: 25px; border-left: 1px dashed #9974cc; }
+.documento-fluxo, .analise-fluxo, .conclusao-fluxo { position: relative; display: flex; align-items: center; gap: 14px; border-radius: 12px; }
+.documento-fluxo { background: #fff; color: var(--trilha-texto); padding: 20px; width: 87%; box-shadow: 0 12px 36px #14072526; }
+.icone-documento { width: 44px; height: 54px; border-radius: 8px; background: #f0e9ff; color: #7c3aed; display: grid; place-items: center; font-size: 23px; }
+.legenda-fluxo { display: block; font-size: 8px; letter-spacing: 1.2px; color: #8a8299; margin-bottom: 6px; }
+.documento-fluxo strong, .analise-fluxo strong, .conclusao-fluxo strong { display: block; font-size: 12px; font-weight: 600; }
+.linhas-documento { display: grid; gap: 5px; margin-top: 10px; }.linhas-documento i { height: 3px; width: 95px; background: #eeeaf4; border-radius: 3px; }.linhas-documento i:last-child { width: 65px; }
+.ponto-fluxo { width: 9px; height: 9px; border-radius: 50%; margin-left: auto; flex-shrink: 0; }.ponto-fluxo.laranja { background: var(--trilha-laranja); }.ponto-fluxo.roxo { background: #bc9aff; }.ponto-fluxo.menta { background: var(--trilha-menta); }
+.analise-fluxo { background: #46286d; border: 1px solid #64408c; padding: 16px 18px; margin: 20px 0 0 47px; }.analise-fluxo > div > span, .conclusao-fluxo > div > span { display: block; font-size: 10px; margin-top: 4px; color: #cfbee3; }
+.icone-analise, .icone-conclusao { display: grid; place-items: center; width: 31px; height: 31px; flex-shrink: 0; border-radius: 9px; background: #ffffff12; color: #dbc5ff; }
+.conclusao-fluxo { background: #352359; border: 1px solid #5c417d; padding: 15px 18px; margin: 20px 20px 0 20px; }.icone-conclusao { background: #29ddb01a; color: #57e7c2; }
+.rodape-marca { display: flex; align-items: center; gap: 11px; color: #beabd6; font-size: 10px; }.pontos-marca { display: flex; gap: 5px; }.pontos-marca i { width: 5px; height: 5px; border-radius: 50%; background: #9b6ef3; }.pontos-marca i:nth-child(2) { background: var(--trilha-laranja); }.pontos-marca i:nth-child(3) { background: var(--trilha-menta); }
+/* Posiciona o formulário e os avisos de acesso. */
+.painel-acesso { display: flex; flex-direction: column; padding: 35px clamp(24px, 4vw, 70px) 25px; min-width: 0; }
+.conteudo-acesso { width: 100%; max-width: 370px; margin: auto; padding: 28px 0 48px; }
+.logo-entrada { display: block; width: 173px; height: auto; margin: 0 0 39px -17px; }
+.chamada-acesso { font-size: 9px; letter-spacing: 1.6px; color: #8e859c; font-weight: 600; margin: 0 0 12px; }
+.titulo-entrada h2 { font: 600 clamp(23px, 2.1vw, 30px)/1.3 Sora, sans-serif; letter-spacing: -1px; margin-bottom: 9px; }.titulo-entrada > p:last-child { color: var(--trilha-texto-secundario); font-size: 12px; margin-bottom: 30px; }
+/* Personaliza os campos e seus estados de foco. */
+.campo-entrada { margin-bottom: 20px; }.campo-entrada .form-label { font-size: 12px; font-weight: 500; margin-bottom: 8px; color: #42394f; }
+.grupo-campo { position: relative; }.icone-campo { position: absolute; display: grid; place-items: center; left: 15px; top: 0; bottom: 0; width: 16px; color: #a39aaf; font-size: 14px; pointer-events: none; }
+.campo-entrada .form-control { height: 48px; border: 1px solid var(--trilha-borda); border-radius: 8px; padding-left: 42px; font-size: 13px; color: var(--trilha-texto); box-shadow: 0 1px 2px #28223803; background: #fff; }.campo-entrada .form-control::placeholder { color: #a29aaa; }.campo-entrada .form-control:focus { border-color: #ab83f4; box-shadow: 0 0 0 3px #7c3aed12; }#senha { padding-right: 49px; }
+/* Mantém o controle de visibilidade da senha acessível. */
+.alternar-senha { position: absolute; right: 3px; top: 3px; height: 42px; width: 42px; border: 0; background: transparent; border-radius: 6px; color: #8d829e; cursor: pointer; }.alternar-senha:hover { background: #f6f2fc; color: var(--trilha-roxo); }
+.linha-recuperacao { display: flex; justify-content: flex-end; margin-top: -6px; margin-bottom: 24px; }.botao-recuperacao { padding: 4px 0; background: none; border: 0; font-size: 11px; font-weight: 500; color: #7131ce; cursor: pointer; }.botao-recuperacao:hover { text-decoration: underline; }
+/* Destaca a ação principal do formulário. */
+.botao-entrar { width: 100%; min-height: 47px; justify-content: center; gap: 13px; background: var(--trilha-roxo); border-color: var(--trilha-roxo); border-radius: 8px; font-size: 12px; font-weight: 600; box-shadow: 0 4px 10px #7c3aed1a; }.botao-entrar:hover, .botao-entrar:active { background: var(--trilha-roxo-destaque) !important; border-color: var(--trilha-roxo-destaque) !important; }.botao-entrar i { font-size: 11px; }
+.observacao-acesso { display: flex; align-items: center; gap: 12px; margin-top: 28px; padding: 17px 0; border-top: 1px solid #f0edf5; border-bottom: 1px solid #f0edf5; }.observacao-acesso > i { color: #9e91ae; font-size: 16px; }.observacao-acesso p { color: #645970; font-size: 11px; margin: 0; line-height: 1.8; }.observacao-acesso p span { color: #92889d; font-size: 10px; }
+.observacao-convite { font-size: 10px; color: #70667d; margin: 22px 0 0; line-height: 1.9; }.observacao-convite > span { color: #91879c; }
+.rodape-acesso { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; width: 100%; color: #a096ac; font-size: 9px; }.rodape-acesso > span:last-child { display: flex; align-items: center; gap: 7px; }.ponto-rodape { width: 5px; height: 5px; border-radius: 50%; background: var(--trilha-menta); }
+.aviso-entrada { font-size: 12px; line-height: 1.6; margin-bottom: 20px; }.aviso-entrada[hidden] { display: none; }
+button:focus-visible { outline: 3px solid #b894f8; outline-offset: 3px; }
+@media (min-width: 1600px) { .conteudo-marca { max-width: 550px; align-self: center; }.painel-marca { padding-left: 80px; padding-right: 80px; } }
+@media (max-width: 1000px) { .painel-marca { padding-left: 30px; padding-right: 30px; }.painel-marca h1 { font-size: 35px; }.cabecalho-marca { font-size: 8px; letter-spacing: .8px; }.descricao-marca { font-size: 12px; }.painel-acesso { padding-left: 28px; padding-right: 28px; }.analise-fluxo { margin-left: 20px; } }
+/* Simplifica a tela e aumenta os campos em dispositivos móveis. */
+@media (max-width: 760px) { .estrutura-entrada { grid-template-columns: 1fr; }.painel-marca { display: none; }.painel-acesso { min-height: 100vh; min-height: 100svh; padding: 25px 24px 20px; }.conteudo-acesso { max-width: 390px; padding-top: 24px; padding-bottom: 42px; }.logo-entrada { margin-bottom: 28px; }.campo-entrada .form-control { font-size: 16px; }.titulo-entrada h2 { font-size: 27px; }.rodape-acesso { max-width: 390px; margin: 0 auto; }.botao-recuperacao { min-height: 44px; }.linha-recuperacao { margin-bottom: 14px; } }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; } }
