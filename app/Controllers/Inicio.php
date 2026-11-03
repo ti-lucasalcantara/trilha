@@ -2,12 +2,18 @@
 
 namespace App\Controllers;
 
-/** Mantém a página inicial do projeto até a implementação da área de trabalho. */
+/** Apresenta o produto e seus planos na página pública do Trilha. */
 class Inicio extends BaseController
 {
-    /** Exibe a página inicial fornecida pelo CodeIgniter. */
+    /** Prepara os endereços internos sem executar contratação ou autenticação. */
     public function exibir(): string
     {
-        return view('welcome_message');
+        helper('url');
+
+        return view('comercial/inicio', [
+            'enderecoDemonstracao' => site_url('organizacao/1/dashboard'),
+            'enderecoLogin' => site_url('login'),
+            'enderecoContato' => '#',
+        ]);
     }
 }
