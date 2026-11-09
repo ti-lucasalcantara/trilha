@@ -49,6 +49,7 @@ Vagrantfile
 # Temporary Files
 #-------------------------
 /writable/*.png
+/writable/*.php
 /writable/*.cjs
 !/writable/index.html
 

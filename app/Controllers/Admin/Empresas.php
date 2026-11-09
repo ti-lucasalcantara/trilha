@@ -4,6 +4,7 @@ namespace App\Controllers\Admin;
 
 use App\Libraries\Admin\Cadastros;
 use App\Libraries\Admin\ConsultaEmpresa;
+use App\Libraries\Admin\SimulacaoEmpresa;
 use CodeIgniter\Exceptions\PageNotFoundException;
 use CodeIgniter\HTTP\ResponseInterface;
 
@@ -29,25 +30,31 @@ class Empresas extends BaseAdmin
         ] + $consulta->inventario(is_string($categoria) ? $categoria : '', is_string($pagina) ? (int) $pagina : 1));
     }
 
-    /** Mostra o contexto de um usuário vinculado sem assumir sua sessão. */
+    /** Inicia a prévia no dashboard sem assumir a identidade de uma conta. */
     public function simular(string $id): ResponseInterface
     {
         $banco = $this->conexaoAdmin();
         $empresa = (new Cadastros($banco))->obter('clientes', $id);
-        $consulta = new ConsultaEmpresa($banco, $id);
-        $selecionado = $this->request->getGet('usuario');
-        $usuarios = array_column($consulta->usuarios(), null, 'id');
-        if (!is_string($selecionado) || !isset($usuarios[$selecionado])) {
+        $selecionado = $this->request->getPost('usuario');
+        if (!is_string($selecionado)) {
             throw PageNotFoundException::forPageNotFound();
         }
+        if ($selecionado !== 'administrador') {
+            $usuarios = array_column((new ConsultaEmpresa($banco, $id))->usuarios(), null, 'id');
+            if (!isset($usuarios[$selecionado])) throw PageNotFoundException::forPageNotFound();
+        }
 
-        $usuario = $usuarios[$selecionado];
-        return $this->renderizar('simulacao', [
-            'tituloPagina' => 'Simulação de acesso',
-            'descricaoPagina' => $empresa['nome'],
-            'paginaAtiva' => 'clientes',
-            'indicacaoPagina' => 'Simulação · Somente leitura',
-            'empresa' => $empresa, 'usuario' => $usuario,
-        ] + $consulta->contextoUsuario((string) $usuario['vinculo_id']));
+        $hash = $empresa['hash_publico'];
+        session()->set(SimulacaoEmpresa::SESSAO, ['empresa' => $id, 'usuario' => $selecionado, 'hash' => $hash]);
+        return redirect()->to(site_url('organizacao/' . $hash . '/dashboard'))->withCookies();
+    }
+
+    /** Encerra o modo de simulação antes de voltar à ficha. */
+    public function encerrarSimulacao(string $id): ResponseInterface
+    {
+        $this->conexaoAdmin();
+        $simulacao = session()->get(SimulacaoEmpresa::SESSAO);
+        if (($simulacao['empresa'] ?? null) === $id) session()->remove(SimulacaoEmpresa::SESSAO);
+        return redirect()->to(site_url('admin/clientes/' . $id))->withCookies();
     }
 }

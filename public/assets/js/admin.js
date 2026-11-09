@@ -31,6 +31,32 @@
         botaoMenu.setAttribute('aria-expanded', String(aberto));
     });
 
+    /** Mantém a senha no formulário e usa o gerador seguro do navegador. */
+    const senha = document.getElementById('campo-admin-senha');
+    if (senha) {
+        const alternar = document.getElementById('alternar-senha-admin');
+        const gerar = document.getElementById('gerar-senha-admin');
+        const aviso = document.getElementById('aviso-senha-admin');
+
+        function exibirSenha(visivel) {
+            senha.type = visivel ? 'text' : 'password';
+            const rotulo = visivel ? 'Ocultar senha' : 'Mostrar senha';
+            alternar.setAttribute('aria-label', rotulo);
+            alternar.title = rotulo;
+            alternar.querySelector('i').className = visivel ? 'fa-regular fa-eye-slash' : 'fa-regular fa-eye';
+        }
+
+        alternar.addEventListener('click', () => exibirSenha(senha.type === 'password'));
+        gerar.addEventListener('click', function gerarSenha() {
+            const bytes = crypto.getRandomValues(new Uint8Array(24));
+            senha.value = btoa(String.fromCharCode(...bytes));
+            exibirSenha(true);
+            aviso.textContent = 'Senha gerada. Copie antes de salvar.';
+            senha.focus();
+            senha.select();
+        });
+    }
+
     /** Filtra os registros já carregados e informa quando a busca fica vazia. */
     const busca = document.getElementById('busca-cadastro-admin');
     if (busca) {

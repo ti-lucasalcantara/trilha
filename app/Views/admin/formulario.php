@@ -10,9 +10,9 @@ $definicoes = [
 ] + match ($cadastro) {
     'clientes' => [
         'nome_fantasia' => ['Nome fantasia', 'text', 200, false],
-        'pais' => ['País (código de duas letras)', 'text', 2, true],
-        'idioma' => ['Idioma', 'text', 20, true],
-        'fuso_horario' => ['Fuso horário', 'text', 80, true],
+        'pais' => ['País', 'select', null, true],
+        'idioma' => ['Idioma', 'select', null, true],
+        'fuso_horario' => ['Fuso horário', 'select', null, true],
     ],
     'planos' => [
         'preco' => ['Preço', 'text', 20, true],
@@ -21,10 +21,18 @@ $definicoes = [
     ],
     'usuarios' => [
         'email' => ['E-mail', 'email', 254, true],
-        'idioma' => ['Idioma', 'text', 20, false],
+        'idioma' => ['Idioma', 'select', null, false],
         'senha' => [$id === null ? 'Senha inicial' : 'Nova senha (opcional)', 'password', 72, $id === null],
     ],
 };
+$opcoesLocalizacao = [
+    'pais' => ['BR' => 'Brasil', 'PT' => 'Portugal', 'CL' => 'Chile'],
+    'idioma' => ['pt-BR' => 'Português (Brasil)', 'pt-PT' => 'Português (Portugal)', 'es-CL' => 'Espanhol (Chile)'],
+];
+if ($cadastro === 'clientes') {
+    $fusos = array_unique(array_merge(['America/Sao_Paulo', 'Europe/Lisbon', 'America/Santiago', 'UTC'], DateTimeZone::listIdentifiers()));
+    $opcoesLocalizacao['fuso_horario'] = array_combine($fusos, array_map(static fn ($fuso) => str_replace('_', ' ', $fuso), $fusos));
+}
 ?>
 <a class="botao-admin secundario voltar-cadastro-admin" href="<?= esc($enderecoLista, 'attr') ?>"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i> Voltar à lista</a>
 
@@ -42,16 +50,38 @@ $definicoes = [
     </header>
     <div class="campos-cadastro-admin">
         <?php foreach ($definicoes as $campo => [$rotulo, $tipo, $limite, $obrigatorio]): ?>
-            <label for="campo-admin-<?= esc($campo, 'attr') ?>">
-                <span><?= esc($rotulo) ?></span>
+            <?php $valorAtual = (string) ($campos[$campo] ?? ''); ?>
+            <div class="campo-cadastro-admin">
+                <label for="campo-admin-<?= esc($campo, 'attr') ?>"><?= esc($rotulo) ?></label>
+                <?php if ($tipo === 'select'): ?>
+                    <?php
+                    // Mantém valores históricos disponíveis ao editar um cadastro.
+                    $opcoes = $opcoesLocalizacao[$campo];
+                    if ($valorAtual !== '' && !isset($opcoes[$valorAtual])) $opcoes[$valorAtual] = $valorAtual;
+                    ?>
+                    <select id="campo-admin-<?= esc($campo, 'attr') ?>" name="<?= esc($campo, 'attr') ?>" <?= $obrigatorio ? 'required' : '' ?>>
+                        <option value=""><?= $obrigatorio ? 'Selecione' : 'Usar o padrão' ?></option>
+                        <?php foreach ($opcoes as $valor => $nomeOpcao): ?>
+                            <option value="<?= esc($valor, 'attr') ?>" <?= $valor === $valorAtual ? 'selected' : '' ?>><?= esc($nomeOpcao) ?></option>
+                        <?php endforeach ?>
+                    </select>
+                <?php else: ?>
+                    <?php if ($tipo === 'password'): ?><div class="controle-senha-admin"><?php endif ?>
                 <input id="campo-admin-<?= esc($campo, 'attr') ?>" type="<?= esc($tipo, 'attr') ?>" name="<?= esc($campo, 'attr') ?>"
-                    value="<?= esc((string) ($campos[$campo] ?? ''), 'attr') ?>"
+                    value="<?= esc($tipo === 'password' ? '' : $valorAtual, 'attr') ?>"
                     <?= $limite ? 'maxlength="' . $limite . '"' : '' ?>
                     <?= $obrigatorio ? 'required' : '' ?>
                     <?= $tipo === 'number' ? 'min="0" max="2147483647" step="1"' : '' ?>
                     <?= $campo === 'preco' ? 'inputmode="decimal"' : '' ?>
                     <?= $tipo === 'password' ? 'autocomplete="new-password" minlength="8"' : '' ?>>
-            </label>
+                    <?php if ($tipo === 'password'): ?>
+                        <button type="button" class="botao-admin secundario" id="alternar-senha-admin" aria-controls="campo-admin-senha" aria-label="Mostrar senha" title="Mostrar senha"><i class="fa-regular fa-eye" aria-hidden="true"></i></button>
+                        <button type="button" class="botao-admin secundario" id="gerar-senha-admin"><i class="fa-solid fa-key" aria-hidden="true"></i> Gerar senha</button>
+                    </div>
+                    <small id="aviso-senha-admin" role="status"></small>
+                    <?php endif ?>
+                <?php endif ?>
+            </div>
         <?php endforeach ?>
         <label for="situacao-cadastro-admin"><span>Situação</span>
             <select id="situacao-cadastro-admin" name="status" required>
@@ -79,7 +109,30 @@ $definicoes = [
                 <legend>Organizações vinculadas</legend>
                 <?php if (!$organizacoes): ?><p>Cadastre um cliente para associar o usuário a uma organização.</p><?php endif ?>
                 <?php foreach ($organizacoes as $organizacao): ?>
-                    <label><input type="checkbox" name="organizacoes[]" value="<?= esc((string) $organizacao['id'], 'attr') ?>" <?= in_array((string) $organizacao['id'], $campos['organizacoes'] ?? [], true) ? 'checked' : '' ?>><span><?= esc($organizacao['nome']) ?></span></label>
+                    <?php
+                    $empresaId = (string) $organizacao['id'];
+                    $perfilAtual = (string) ($campos['perfis'][$empresaId] ?? '');
+                    $protegido = $perfilAtual !== '' && $perfilAtual === (string) $organizacao['perfil_protegido'];
+                    ?>
+                    <div class="vinculo-perfil-admin">
+                        <label><input type="checkbox" name="organizacoes[]" value="<?= esc($empresaId, 'attr') ?>" <?= in_array($empresaId, $campos['organizacoes'] ?? [], true) ? 'checked' : '' ?> <?= $protegido ? 'disabled' : '' ?>><span><?= esc($organizacao['nome']) ?></span></label>
+                        <?php if ($protegido): ?>
+                            <input type="hidden" name="organizacoes[]" value="<?= esc($empresaId, 'attr') ?>">
+                            <input type="hidden" name="perfis[<?= esc($empresaId, 'attr') ?>]" value="<?= esc($perfilAtual, 'attr') ?>">
+                            <span>Administrador fundador · Protegido</span>
+                        <?php elseif (!$organizacao['perfis']): ?>
+                            <span>Sem perfis · O vínculo criará o Administrador fundador.</span>
+                        <?php else: ?>
+                            <label for="perfil-empresa-<?= esc($empresaId, 'attr') ?>">Perfil</label>
+                            <select id="perfil-empresa-<?= esc($empresaId, 'attr') ?>" name="perfis[<?= esc($empresaId, 'attr') ?>]">
+                                <option value="">Selecione um perfil</option>
+                                <?php foreach ($organizacao['perfis'] as $perfil): ?>
+                                    <?php if ($perfil['status'] !== 'ativo' || (string) $perfil['id'] === (string) $organizacao['perfil_protegido']) continue; ?>
+                                    <option value="<?= esc((string) $perfil['id'], 'attr') ?>" <?= (string) $perfil['id'] === $perfilAtual ? 'selected' : '' ?>><?= esc($perfil['nome']) ?></option>
+                                <?php endforeach ?>
+                            </select>
+                        <?php endif ?>
+                    </div>
                 <?php endforeach ?>
             </fieldset>
         <?php endif ?>

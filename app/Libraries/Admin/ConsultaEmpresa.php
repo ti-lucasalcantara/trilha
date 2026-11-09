@@ -3,6 +3,7 @@
 namespace App\Libraries\Admin;
 
 use CodeIgniter\Database\BaseConnection;
+use App\Libraries\Organizacao\ContextoSetor;
 
 /** Consulta dados de uma empresa sem alterar seu conteúdo ou suas permissões. */
 class ConsultaEmpresa
@@ -66,7 +67,7 @@ class ConsultaEmpresa
     }
 
     /** Pagina o inventário por categoria, usando somente colunas autorizadas para a consulta administrativa. */
-    public function inventario(string $categoria, int $pagina): array
+    public function inventario(string $categoria, int $pagina, ?string $setor = null): array
     {
         $categorias = ['equipe' => 'Equipe'] + array_map(static fn (array $definicao) => $definicao[0], self::INVENTARIO);
         if (!isset($categorias[$categoria])) $categoria = 'processos';
@@ -81,6 +82,19 @@ class ConsultaEmpresa
             $colunas = self::INVENTARIO[$categoria][1];
             $consulta = $this->banco->table($categoria)->select(array_keys($colunas))
                 ->where('organizacao_id', $this->empresa)->orderBy('id', 'DESC');
+        }
+
+        // O inventário do Admin continua global. A área de trabalho usa o setor ativo.
+        if ($setor !== null) {
+            if ($categoria === 'processos') {
+                $consulta->where(ContextoSetor::condicaoProcessos($this->banco, $setor, 'processos'), null, false);
+            } elseif ($categoria === 'documentos' || $categoria === 'pastas') {
+                $consulta->where($categoria === 'pastas' ? 'setor_id' : 'setor_origem_id', $setor ?: '0');
+            } elseif ($categoria === 'assinaturas') {
+                $consulta->whereIn('documento_versao_id', $this->banco->table('documento_versoes v')->select('v.id')
+                    ->join('documentos d', 'd.organizacao_id = v.organizacao_id AND d.id = v.documento_id')
+                    ->where(['v.organizacao_id' => $this->empresa, 'd.setor_origem_id' => $setor ?: '0']));
+            }
         }
 
         $total = $consulta->countAllResults(false);

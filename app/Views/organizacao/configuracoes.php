@@ -15,8 +15,8 @@
     <p>Organize as unidades, vincule pessoas aos setores e defina o que cada perfil pode fazer.</p>
 </header>
 
-<!-- Os dados e as alterações desta etapa existem apenas na página aberta. -->
-<div class="area-configuracoes">
+<!-- A mesma interface recebe os dados do banco quando há uma sessão administrativa. -->
+<div class="area-configuracoes"<?= isset($configuracoesReais) ? ' data-configuracoes-reais="' . esc(json_encode($configuracoesReais, JSON_THROW_ON_ERROR | JSON_INVALID_UTF8_SUBSTITUTE), 'attr') . '"' : '' ?>>
     <nav class="navegacao-configuracoes" aria-label="Configurações da organização">
         <a href="#estrutura" data-pagina-configuracoes="estrutura"><i class="fa-regular fa-building" aria-hidden="true"></i>Estrutura</a>
         <a href="#equipe" data-pagina-configuracoes="equipe"><i class="fa-solid fa-users" aria-hidden="true"></i>Equipe</a>
@@ -72,7 +72,12 @@
                 </div>
             </article>
         </section>
-        <p class="nota-configuracoes"><i class="fa-solid fa-circle-info" aria-hidden="true"></i> Prévia demonstrativa. As alterações valem até recarregar a página.</p>
+        <?php if (isset($configuracoesReais) && ($mensagem = session()->getFlashdata('sucessoSimulacao'))): ?>
+            <p class="alert alert-success" role="status"><?= esc($mensagem) ?></p>
+        <?php elseif (isset($configuracoesReais) && ($mensagem = session()->getFlashdata('erroSimulacao'))): ?>
+            <p class="alert alert-danger" role="alert"><?= esc($mensagem) ?></p>
+        <?php endif ?>
+        <p class="nota-configuracoes"><i class="fa-solid fa-circle-info" aria-hidden="true"></i> <?= isset($configuracoesReais) ? 'Dados da organização. As ações disponíveis gravam no banco.' : 'Prévia demonstrativa. As alterações valem até recarregar a página.' ?></p>
         <p id="aviso-configuracoes" class="nota-configuracoes" role="status"></p>
     </div>
 </div>
@@ -85,7 +90,7 @@
         <div id="campos-configuracoes"></div>
         <p id="erro-configuracoes" role="alert" hidden></p>
         <footer>
-            <button class="controle-configuracoes" type="submit" value="cancelar" formnovalidate>Cancelar</button>
+            <button class="controle-configuracoes" type="button" value="cancelar" data-cancelar-dialogo>Cancelar</button>
             <button class="btn btn-primary" id="confirmar-configuracoes" type="submit" value="confirmar">Salvar</button>
         </footer>
     </form>

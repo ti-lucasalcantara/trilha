@@ -5,10 +5,13 @@
             <a class="marca-aplicacao" href="<?= esc(site_url('organizacao/' . $identificadorOrganizacao . '/dashboard'), 'attr') ?>" aria-label="Trilha — caixa de trabalho">
                 <img src="<?= esc(base_url('img/logo.png'), 'attr') ?>" alt="Trilha" width="132" height="46">
             </a>
-            <details class="menu-contexto menu-suspenso">
-                <summary><span class="icone-organizacao"><i class="fa-regular fa-building" aria-hidden="true"></i></span><span><strong><?= esc($nomeOrganizacao) ?></strong><small>Organização atual</small></span><i class="fa-solid fa-chevron-down seta-menu" aria-hidden="true"></i></summary>
-                <div class="conteudo-menu"><span class="rotulo-menu">SUAS ORGANIZAÇÕES</span><button type="button" class="opcao-menu selecionada" data-aviso="Você já está na organização demonstrativa Empresa Horizonte."><i class="fa-regular fa-building" aria-hidden="true"></i>Empresa Horizonte<i class="fa-solid fa-check" aria-hidden="true"></i></button><p class="nota-menu">Outras organizações aparecerão aqui quando houver vínculos reais.</p></div>
-            </details>
+            <div class="identificacao-empresa-real contexto-organizacao-cabecalho">
+                <span class="icone-organizacao"><i class="fa-regular fa-building" aria-hidden="true"></i></span>
+                <div>
+                    <div class="nome-empresa-cabecalho"><strong><?= esc($nomeOrganizacao) ?></strong></div>
+                    <?= $this->include('layout/contexto_trabalho') ?>
+                </div>
+            </div>
         </div>
         <div class="ferramentas-cabecalho">
             <button type="button" class="atalho-pesquisa" data-focar-pesquisa><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><span>Pesquisar nesta página</span><kbd>/</kbd></button>
@@ -17,3 +20,4 @@
         </div>
     </div>
 </header>
+

@@ -77,7 +77,7 @@ class Filters extends BaseFilters
         ],
         'after' => [
             // Evita registrar formulários e consultas com dados administrativos na barra de depuração.
-            'toolbar' => ['except' => ['admin', 'admin/*']],
+            'toolbar' => ['except' => ['login', 'admin', 'admin/*', 'organizacao/*/dashboard', 'organizacao/*/equipe', 'organizacao/*/processos', 'organizacao/*/processos/*']],
             // 'honeypot',
             // 'secureheaders',
         ],

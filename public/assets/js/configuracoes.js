@@ -2,7 +2,9 @@
 (() => {
     'use strict';
 
-    const dados = {
+    const fonte = document.querySelector('.area-configuracoes').dataset.configuracoesReais;
+    const real = fonte ? JSON.parse(fonte) : null;
+    const dados = real?.dados ?? {
         unidades: [{ id: '1', nome: 'Matriz', sigla: 'MTZ' }, { id: '2', nome: 'Filial Centro', sigla: 'CTR' }],
         setores: [
             { id: '3', nome: 'Financeiro', sigla: 'FIN', unidade: '1' },
@@ -19,7 +21,7 @@
         ],
         atribuicoes: [{ id: '9', pessoa: '6', perfil: '8', escopo: 'setor:3' }, { id: '11', pessoa: '7', perfil: '10', escopo: 'unidade:1' }],
     };
-    const catalogo = [
+    const catalogo = real?.catalogo ?? [
         { id: 'processos.consultar', nome: 'Consultar processos', modulo: 'Processos' },
         { id: 'processos.criar', nome: 'Criar processos', modulo: 'Processos' },
         { id: 'processos.tramitar', nome: 'Tramitar processos', modulo: 'Processos' },
@@ -38,7 +40,7 @@
     const abasPerfisCadastrados = document.getElementById('abas-perfis-cadastrados');
     const formularioPerfil = document.getElementById('formulario-permissoes-perfil');
     const abasPerfil = Array.from(document.querySelectorAll('.abas-perfil [role="tab"]'));
-    const unidadesAbertas = new Set(['1']);
+    const unidadesAbertas = new Set(dados.unidades.slice(0, 1).map(unidade => unidade.id));
     const pessoasComPerfisAbertos = new Set();
     const rascunhosPermissoes = new Map();
     let perfilAtual = '10';
@@ -152,7 +154,8 @@
                 identificacao.append(grupo);
             });
             const acoes = elemento('div', '', 'acoes-configuracoes');
-            acoes.append(botaoAcao('Editar', 'editar', tipo, registro), botaoAcao('Remover', 'remover', tipo, registro));
+            if (!real || ['unidades', 'setores'].includes(tipo)) acoes.append(botaoAcao('Editar', 'editar', tipo, registro));
+            if (!real) acoes.append(botaoAcao('Remover', 'remover', tipo, registro));
             const resumo = elemento('div', '', 'resumo-registro');
             resumo.append(icone, identificacao, acoes);
             linha.append(resumo);
@@ -266,12 +269,16 @@
             botao.classList.remove('controle-registro');
             botao.append(` ${botao.title}`);
         });
-        document.getElementById('acoes-perfil').replaceChildren(renomear, excluir);
+        document.getElementById('acoes-perfil').replaceChildren(...(real && (!real.perfis || perfil.protegido) ? [] : [renomear, excluir]));
+        if (perfil.protegido) document.getElementById('acoes-perfil').append(elemento('span', 'Administrador fundador · Protegido', 'contagem-configuracoes'));
         const marcacoes = document.getElementById('marcacoes-perfil');
         marcacoes.replaceChildren();
         for (const modulo of new Set(catalogo.map(permissao => permissao.modulo))) {
             adicionarMarcacoes(modulo, 'permissoes', catalogo.filter(permissao => permissao.modulo === modulo), rascunhosPermissoes.get(perfil.id) ?? perfil.permissoes, marcacoes);
         }
+        const somenteLeitura = Boolean(real && (!real.perfis || perfil.protegido));
+        marcacoes.querySelectorAll('input').forEach(campo => { campo.disabled = somenteLeitura; });
+        formularioPerfil.querySelector('button[type="submit"]').hidden = somenteLeitura;
         const atribuicoes = dados.atribuicoes.filter(registro => registro.perfil === perfil.id);
         const escopos = opcoesEscopo();
         document.getElementById('contagem-atribuicoes').textContent = new Set(atribuicoes.map(registro => registro.pessoa)).size;
@@ -362,7 +369,7 @@
         if (acao === 'remover') {
             const dependencias = temDependencias(tipo, registro.id);
             confirmar.hidden = dependencias;
-            campos.append(elemento('p', dependencias ? 'Há vínculos neste cadastro. Revise os vínculos antes de remover.' : 'Confirma a remoção deste cadastro da prévia?'));
+            campos.append(elemento('p', dependencias ? 'Há vínculos neste cadastro. Revise os vínculos antes de remover.' : (real ? 'Confirma a exclusão deste perfil?' : 'Confirma a remoção deste cadastro da prévia?')));
         } else if (tipo === 'atribuicoes') {
             adicionarSelecao('Pessoa', 'pessoa', dados.pessoas, registro.pessoa);
             adicionarSelecao('Âmbito', 'escopo', opcoesEscopo(), registro.escopo);
@@ -370,11 +377,24 @@
             adicionarTexto('Nome', 'nome', registro.nome, tipo === 'perfis' ? 150 : 200, 'text', true);
             if (tipo === 'unidades' || tipo === 'setores') {
                 adicionarTexto('Sigla', 'sigla', registro.sigla, 40);
-                adicionarSelecao(`${tipo === 'unidades' ? 'Unidade' : 'Setor'} superior`, 'superior', opcoesSuperiores(tipo, registro), registro.superior, 'Sem vínculo superior');
+                if (real) {
+                    adicionarSelecao('Situação', 'status', [{ id: 'ativo', nome: 'Ativo' }, { id: 'inativo', nome: 'Inativo' }], registro.status);
+                } else {
+                    adicionarSelecao(`${tipo === 'unidades' ? 'Unidade' : 'Setor'} superior`, 'superior', opcoesSuperiores(tipo, registro), registro.superior, 'Sem vínculo superior');
+                }
             }
             if (tipo === 'pessoas') {
                 adicionarTexto('E-mail', 'email', registro.email, 254, 'email', true);
-                adicionarMarcacoes('Setores vinculados', 'setores', dados.setores.map(setor => ({ id: setor.id, nome: nomeSetor(setor) })), registro.setores);
+                if (real) {
+                    adicionarTexto('Senha inicial', 'senha', '', 72, 'password', true);
+                    const senha = formulario.elements.namedItem('senha');
+                    senha.minLength = 8;
+                    senha.autocomplete = 'new-password';
+                    adicionarSelecao('Perfil', 'perfil', dados.perfis.filter(perfil => !perfil.protegido && perfil.status === 'ativo'), '', 'Selecione');
+                    formulario.elements.namedItem('perfil').required = true;
+                } else {
+                    adicionarMarcacoes('Setores vinculados', 'setores', dados.setores.map(setor => ({ id: setor.id, nome: nomeSetor(setor) })), registro.setores);
+                }
             }
             if (tipo === 'perfis') {
                 const descricao = elemento('textarea');
@@ -388,8 +408,32 @@
 
     /** Aplica o formulário em memória e mantém o foco na seção atual. */
     function salvarRegistro(evento) {
-        if (evento.submitter?.value !== 'confirmar' || confirmar.hidden) return;
+        if (evento.submitter?.value !== 'confirmar' || confirmar.hidden) {
+            evento.preventDefault();
+            return;
+        }
         const { tipo, registro, acao } = edicao;
+        if (real) {
+            evento.preventDefault();
+            const valores = new FormData(formulario);
+            if (tipo === 'unidades' || tipo === 'setores') {
+                valores.set('tabela', tipo);
+                valores.set('id', registro.id ?? '');
+                valores.set('unidade', registro.unidade ?? '');
+                enviarCadastro(real.estrutura, valores);
+            } else if (tipo === 'pessoas' && real.equipe) {
+                enviarCadastro(real.equipe, valores);
+            } else if (tipo === 'perfis' && real.perfis) {
+                if (acao === 'remover') {
+                    enviarCadastro(`${real.perfis}/${registro.id}/excluir`, valores);
+                } else {
+                    valores.set('id', registro.id ?? '');
+                    (registro.permissoes ?? []).forEach(id => valores.append('permissoes[]', id));
+                    enviarCadastro(real.perfis, valores);
+                }
+            }
+            return;
+        }
         if (acao === 'remover') {
             dados[tipo] = dados[tipo].filter(item => item.id !== registro.id);
             if (tipo === 'unidades') unidadesAbertas.delete(registro.id);
@@ -428,6 +472,24 @@
             const botao = (tipo === 'perfis' && document.getElementById(`aba-perfil-${perfilAtual}`)) || document.querySelector(seletor);
             (botao?.disabled ? document.querySelector('.navegacao-configuracoes [aria-current="page"]') : botao)?.focus();
         }, { once: true });
+    }
+
+    /** Envia o modal ao fluxo POST protegido e volta à aba após a gravação. */
+    function enviarCadastro(destino, valores) {
+        const envio = elemento('form');
+        envio.method = 'post';
+        envio.action = destino;
+        envio.hidden = true;
+        valores.set(real.csrfNome, real.csrfValor);
+        for (const [nome, valor] of valores) {
+            const campo = elemento('input');
+            campo.type = 'hidden';
+            campo.name = nome;
+            campo.value = valor;
+            envio.append(campo);
+        }
+        document.body.append(envio);
+        envio.submit();
     }
 
     /** Navega entre as três áreas e aceita links diretos pelo menu. */
@@ -482,14 +544,32 @@
     });
     formularioPerfil.addEventListener('submit', function salvarPermissoes(evento) {
         evento.preventDefault();
+        if (real) {
+            const perfil = buscar('perfis', perfilAtual);
+            if (!real.perfis || perfil.protegido) return;
+            const valores = new FormData();
+            valores.set('id', perfil.id);
+            valores.set('nome', perfil.nome);
+            valores.set('descricao', perfil.descricao);
+            new FormData(formularioPerfil).getAll('permissoes').forEach(id => valores.append('permissoes[]', id));
+            enviarCadastro(real.perfis, valores);
+            return;
+        }
         buscar('perfis', perfilAtual).permissoes = new FormData(formularioPerfil).getAll('permissoes');
         rascunhosPermissoes.delete(perfilAtual);
         aviso.textContent = 'Permissões salvas na prévia.';
     });
-    document.querySelectorAll('[data-novo]').forEach(botao => botao.addEventListener('click', function criarRegistro() {
+    document.querySelectorAll('[data-novo]').forEach(botao => {
+        const tipo = botao.dataset.novo;
+        if (real && (tipo === 'atribuicoes' || (tipo === 'pessoas' && !real.equipe) || (tipo === 'perfis' && !real.perfis))) {
+            botao.hidden = true;
+            return;
+        }
+        botao.addEventListener('click', function criarRegistro() {
         const tipo = botao.dataset.novo;
         abrirEditor(tipo, tipo === 'atribuicoes' ? { perfil: perfilAtual } : {});
-    }));
+        });
+    });
     formulario.addEventListener('submit', salvarRegistro);
     busca.addEventListener('input', atualizarEquipe);
     window.addEventListener('hashchange', mostrarPagina);

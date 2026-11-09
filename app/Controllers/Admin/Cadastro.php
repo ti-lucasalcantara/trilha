@@ -100,6 +100,8 @@ abstract class Cadastro extends BaseAdmin
             $campos['email'] = strtolower($campos['email']);
             $organizacoes = $this->request->getPost('organizacoes') ?? [];
             $campos['organizacoes'] = is_array($organizacoes) ? array_values(array_unique(array_filter($organizacoes, static fn ($valor) => is_string($valor) && preg_match('/^[1-9][0-9]{0,19}$/D', $valor)))) : [];
+            $perfis = $this->request->getPost('perfis');
+            $campos['perfis'] = is_array($perfis) ? array_filter($perfis, static fn ($valor) => is_string($valor) && preg_match('/^[1-9][0-9]{0,19}$/D', $valor)) : [];
         }
         return $campos;
     }
@@ -139,13 +141,20 @@ abstract class Cadastro extends BaseAdmin
     {
         unset($campos['senha']);
         if ($erros) $this->response->setStatusCode(422);
+        $organizacoes = static::CADASTRO === 'usuarios' ? $banco->listar('clientes') : [];
+        $perfis = new \App\Libraries\Organizacao\PerfisOrganizacao(db_connect());
+        foreach ($organizacoes as &$organizacao) {
+            $organizacao['perfis'] = $perfis->listar((string) $organizacao['id']);
+            $organizacao['perfil_protegido'] = $perfis->administrador((string) $organizacao['id'])['perfil_id'] ?? null;
+        }
+        unset($organizacao);
         return $this->renderizar('formulario', $this->contexto(($id === null ? 'Novo cadastro' : 'Editar cadastro') . ' · ' . static::SINGULAR) + [
             'id' => $id,
             'campos' => $campos,
             'erros' => $erros,
             'planoVinculado' => $anterior['plano_versao_id'] ?? $campos['plano_versao_id'] ?? '',
             'planos' => static::CADASTRO === 'clientes' ? $banco->listar('planos') : [],
-            'organizacoes' => static::CADASTRO === 'usuarios' ? $banco->listar('clientes') : [],
+            'organizacoes' => $organizacoes,
         ]);
     }
 

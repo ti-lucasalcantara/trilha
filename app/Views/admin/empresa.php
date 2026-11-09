@@ -28,23 +28,24 @@ $percentual = $armazenamento['cota'] > 0 ? min(100, $armazenamento['utilizado'] 
 
 <section class="cartao-admin" aria-labelledby="titulo-simulacao-admin">
     <header>
-        <h2 id="titulo-simulacao-admin">Simular como usuário</h2>
-        <p>Confira os setores, perfis e permissões atribuídos ao vínculo selecionado.</p>
+        <h2 id="titulo-simulacao-admin">Simular área da empresa</h2>
+        <p>Abra o dashboard como administrador da organização ou como um usuário interno vinculado.</p>
         <?php if (!$usuarios): ?>
-            <p class="nota-admin">Nenhum usuário interno ativo vinculado a esta empresa.</p>
-        <?php else: ?>
-            <form class="barra-consulta-admin interna" method="get" action="<?= esc($enderecoEmpresa . '/simular', 'attr') ?>">
+            <p class="nota-admin">A opção de administrador está disponível mesmo sem usuários vinculados.</p>
+        <?php endif ?>
+            <form class="barra-consulta-admin interna" method="post" action="<?= esc($enderecoEmpresa . '/simular', 'attr') ?>">
+                <?= csrf_field() ?>
                 <label for="usuario-simulacao-admin">Usuário
                     <select id="usuario-simulacao-admin" name="usuario" required>
                         <option value="">Selecione um usuário</option>
+                        <option value="administrador">Administrador da organização</option>
                         <?php foreach ($usuarios as $usuario): ?>
                             <option value="<?= esc((string) $usuario['id'], 'attr') ?>"><?= esc($usuario['nome'] . ' · ' . $usuario['email']) ?></option>
                         <?php endforeach ?>
                     </select>
                 </label>
-                <button type="submit" class="botao-admin principal">Abrir simulação</button>
+                <button type="submit" class="botao-admin principal">Simular</button>
             </form>
-        <?php endif ?>
     </header>
 </section>
 

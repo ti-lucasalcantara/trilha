@@ -3,17 +3,22 @@
 namespace App\Controllers\Organizacao;
 
 use App\Controllers\BaseController;
+use App\Libraries\Admin\Cadastros;
+use App\Libraries\Admin\ConsultaEmpresa;
+use App\Libraries\Admin\SimulacaoEmpresa;
+use App\Libraries\Organizacao\AcessoOrganizacao;
+use App\Libraries\Organizacao\ContextoSetor;
 use CodeIgniter\Exceptions\PageNotFoundException;
 use CodeIgniter\HTTP\ResponseInterface;
 
 /** Apresenta a área interna com dados fictícios, sem consultar o banco. */
 class Painel extends BaseController
 {
-    /** Exibe somente a organização demonstrativa até existir identificação real. */
+    /** Abre a área demonstrativa ou uma simulação administrativa válida. */
     public function exibir(string $identificadorOrganizacao): ResponseInterface
     {
         if ($identificadorOrganizacao !== '1') {
-            throw PageNotFoundException::forPageNotFound();
+            return $this->exibirEmpresa($identificadorOrganizacao);
         }
 
         helper('url');
@@ -34,6 +39,63 @@ class Painel extends BaseController
                 'processos' => $processos,
                 'quantidades' => $quantidades,
             ]));
+    }
+
+    /** Apresenta dados autorizados para a prévia, sem conceder uma sessão de usuário. */
+    private function exibirEmpresa(string $hash): ResponseInterface
+    {
+        helper(['url', 'form']);
+        $banco = db_connect();
+        $sessaoSimulada = session()->get(SimulacaoEmpresa::SESSAO);
+        $simulado = ($sessaoSimulada['hash'] ?? null) === $hash;
+        if ($simulado) {
+            $contexto = SimulacaoEmpresa::contexto($this->request, $hash);
+            $empresaId = $contexto['empresa'];
+        } else {
+            $contexto = (new AcessoOrganizacao($banco))->contexto($hash);
+            $empresaId = (string) $contexto['empresa'];
+        }
+        $empresa = (new Cadastros($banco))->obter('clientes', $empresaId);
+        if (!hash_equals($empresa['hash_publico'], $hash)) throw PageNotFoundException::forPageNotFound();
+        $consulta = new ConsultaEmpresa($banco, $empresaId);
+        $administrador = $simulado ? $contexto['usuario'] === 'administrador' : (bool) $contexto['fundador'];
+        $usuario = $simulado
+            ? ($administrador ? ['nome' => 'Administrador da organização'] : (array_column($consulta->usuarios(), null, 'id')[$contexto['usuario']] ?? null))
+            : ['nome' => $contexto['usuario'], 'vinculo_id' => $contexto['vinculo']];
+        if (!$usuario) throw PageNotFoundException::forPageNotFound();
+
+        $modulo = $this->request->getGet('modulo');
+        $categorias = ['processos', 'documentos', 'assinaturas', 'pastas', 'equipe', 'perfis', 'unidades', 'setores'];
+        if (!in_array($modulo, [...$categorias, 'estrutura'], true)) $modulo = 'dashboard';
+        $consultas = !$simulado && !$administrador ? (new AcessoOrganizacao($banco))->consultas($contexto) : [];
+        if (!$administrador && $modulo !== 'dashboard' && !in_array($modulo, $consultas, true)) throw PageNotFoundException::forPageNotFound();
+        if ($modulo === 'processos') {
+            return redirect()->to(site_url('organizacao/' . $hash . '/processos'));
+        }
+        $abasConfiguracoes = ['estrutura' => 'estrutura', 'equipe' => 'equipe', 'perfis' => 'permissoes'];
+        if (isset($abasConfiguracoes[$modulo])) {
+            return redirect()->to(site_url('organizacao/' . $hash . '/configuracoes') . '#' . $abasConfiguracoes[$modulo]);
+        }
+
+        $contextoTrabalho = (new ContextoSetor($banco, $empresaId, $administrador ? null : (string) $usuario['vinculo_id']))->obter();
+        $dados = $administrador ? [] : $consulta->contextoUsuario((string) $usuario['vinculo_id']);
+        if ($administrador || $modulo !== 'dashboard') {
+            $pagina = $this->request->getGet('pagina');
+            $dados = ['inventario' => $consulta->inventario($modulo === 'dashboard' ? 'processos' : $modulo, is_string($pagina) ? (int) $pagina : 1, $contextoTrabalho['setor']['id'] ?? '')];
+        }
+        return $this->response->setHeader('Cache-Control', 'no-store, private')->setBody(view('organizacao/painel_simulacao', [
+            'tituloPagina' => $simulado ? 'Caixa de trabalho · Simulação' : 'Caixa de trabalho',
+            'paginaAtiva' => $modulo,
+            'identificadorOrganizacao' => $hash,
+            'nomeOrganizacao' => $empresa['nome'],
+            'nomeUsuario' => $usuario['nome'],
+            'modoSimulacao' => $simulado,
+            'contextoEmpresaReal' => !$simulado,
+            'empresaSimulada' => $empresa['id'],
+            'administradorSimulado' => $administrador,
+            'consultasPermitidas' => $consultas,
+            'contextoTrabalho' => $contextoTrabalho,
+        ] + $dados));
     }
 
     /** Fornece exemplos de conteúdo para avaliar a interface, sem definir regras reais. */

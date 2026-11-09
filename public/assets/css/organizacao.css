@@ -66,3 +66,98 @@
     background: #b69aff;
     transform-origin: left;
 }
+
+/* Mantém a indicação de simulação fixa e reserva seu espaço no documento. */
+.area-organizacao.em-simulacao { --altura-faixa-simulacao: 49px; padding-top: var(--altura-faixa-simulacao); }
+.faixa-simulacao { position: fixed; z-index: 1100; inset: 0 0 auto; height: var(--altura-faixa-simulacao); background: #a82138; color: #fff; }
+.faixa-simulacao > div { display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 100%; }
+.faixa-simulacao strong { font-size: 13px; }
+.faixa-simulacao small { margin-left: 7px; color: #ffe1e5; font-weight: 400; }
+.faixa-simulacao form { margin: 0; flex: none; }
+.faixa-simulacao button { min-height: 32px; padding: 4px 9px; border: 1px solid #ffd2d9; border-radius: 6px; background: #8e192e; color: #fff; }
+.faixa-simulacao button:hover { background: #741226; }
+.em-simulacao .atalho-conteudo:focus { z-index: 1101; }
+.grade-simulacao { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.lista-simulacao { list-style: none; margin: 0; padding: 0; }
+.lista-simulacao li { display: grid; gap: 3px; padding: 10px 16px; border-top: 1px solid var(--trilha-borda); overflow-wrap: anywhere; }
+.lista-simulacao small, .vazio-simulacao, .nota-simulacao { color: #62576f; }
+.vazio-simulacao { padding: 8px 20px 18px; }
+.nota-simulacao { padding-bottom: 12px; }
+@media (max-width: 650px) {
+    .faixa-simulacao small { display: block; margin-left: 0; }
+    .grade-simulacao { grid-template-columns: minmax(0, 1fr); }
+}
+
+.tabela-simulacao { min-width: 460px; }
+.paginacao-simulacao { display: flex; gap: 8px; padding: 10px 16px; }
+
+/* Usa a mesma composição de marca, empresa e conta do cabeçalho demonstrativo. */
+.identificacao-empresa-real { display: flex; align-items: center; gap: 9px; min-width: 0; padding-left: 16px; border-left: 1px solid var(--trilha-borda); }
+.identificacao-empresa-real strong { display: block; overflow-wrap: anywhere; }
+.identificacao-empresa-real small { display: block; color: var(--trilha-secundario); }
+.identidade-usuario-real { flex-shrink: 0; gap: 8px; }
+.identidade-usuario-real form { margin: 0; }
+@media (max-width: 600px) {
+    .identificacao-empresa-real { padding-left: 8px; font-size: 11px; }
+    .identidade-usuario-real .avatar-usuario { display: none; }
+}
+
+/* Posiciona a unidade sob a organização e o setor ao lado. */
+.seletor-trabalho-cabecalho { display: flex; align-items: end; flex-wrap: wrap; gap: 4px 8px; margin-top: 4px; }
+.seletor-trabalho-cabecalho label { display: grid; gap: 2px; font-size: 10px; color: #62576f; min-width: 0; }
+.seletor-trabalho-cabecalho select { max-width: 170px; min-width: 95px; min-height: 27px; padding: 2px 5px; border: 1px solid #d8d1e3; border-radius: 5px; background: #fff; color: #292439; font-size: 11px; }
+.identidade-contexto > .contexto-organizacao-cabecalho { min-width: 0; }
+.aviso-contexto-trabalho { color: #a82138; font-size: 11px; }
+@media (max-width: 650px) {
+    .linha-cabecalho:has(.seletor-trabalho-cabecalho) { padding-block: 7px; flex-wrap: wrap; }
+    .seletor-trabalho-cabecalho select { max-width: 120px; min-height: 30px; }
+}
+
+/* Dá espaço ao nome da empresa e aos seletores sem aumentar o peso do cabeçalho. */
+.linha-cabecalho:has(.seletor-trabalho-cabecalho) { padding-block: 10px; }
+.linha-cabecalho:has(.seletor-trabalho-cabecalho) .identidade-contexto { flex: 1; min-width: 0; }
+.identificacao-empresa-real { min-width: 0; }
+.identificacao-empresa-real > div { min-width: 0; }
+.nome-empresa-cabecalho { display: flex; align-items: center; gap: 7px; margin-bottom: 4px; }
+.nome-empresa-cabecalho strong { font-size: 14px; line-height: 1.3; }
+.trocar-organizacao-cabecalho { flex: none; }
+.trocar-organizacao-cabecalho .botao-icone { width: 27px; height: 27px; color: #6232c5; }
+.trocar-organizacao-cabecalho .conteudo-menu { left: 0; right: auto; }
+.seletor-trabalho-cabecalho { gap: 6px 12px; margin-top: 0; align-items: start; }
+.seletor-trabalho-cabecalho label { font-size: 11px; font-weight: 600; gap: 3px; }
+.seletor-trabalho-cabecalho select { min-height: 32px; padding: 4px 8px; font-size: 12px; font-weight: 400; }
+#unidade-trabalho { min-width: 120px; max-width: min(210px, 100%); }
+#setor-trabalho { min-width: 180px; max-width: min(440px, 100%); }
+@media (max-width: 650px) {
+    .linha-cabecalho:has(.seletor-trabalho-cabecalho) .identidade-contexto { flex-basis: 100%; align-items: flex-start; }
+    .nome-empresa-cabecalho strong { font-size: 13px; }
+    .seletor-trabalho-cabecalho label { flex: 1 1 110px; }
+    #unidade-trabalho, #setor-trabalho { min-width: 0; max-width: 100%; width: 100%; }
+}
+
+/* Os nomes do contexto ficam em texto até que o seletor seja aberto. */
+.seletor-trabalho-cabecalho [hidden] { display: none; }
+.nome-contexto-trabalho {
+    max-width: 100%;
+    padding: 1px 0;
+    border: 0;
+    background: transparent;
+    color: #62576f;
+    font-size: 12px !important;
+    text-align: left;
+    overflow-wrap: anywhere;
+}
+.nome-contexto-trabalho:is(:hover, :focus-visible) { color: var(--trilha-roxo-forte); text-decoration: underline; text-underline-offset: 3px; }
+#editar-setor-trabalho { border-left: 1px solid var(--trilha-borda); padding-left: 10px; }
+.dialogo-contexto-trabalho {
+    width: min(420px, calc(100% - 24px));
+    padding: 20px;
+    border: 1px solid var(--trilha-borda);
+    border-radius: 10px;
+    background: #fff;
+    color: #292439;
+}
+.dialogo-contexto-trabalho::backdrop { background: #151c3466; }
+.dialogo-contexto-trabalho h2 { font-size: 18px; }
+.area-organizacao .dialogo-contexto-trabalho p { margin-top: 6px; overflow-wrap: anywhere; }
+.dialogo-contexto-trabalho form { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; margin-top: 16px; }

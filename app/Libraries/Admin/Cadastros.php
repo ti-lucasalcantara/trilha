@@ -7,6 +7,7 @@ use CodeIgniter\Exceptions\PageNotFoundException;
 use DomainException;
 use RuntimeException;
 use Throwable;
+use App\Libraries\Organizacao\PerfisOrganizacao;
 
 /** Persiste os cadastros administrativos no esquema existente. */
 class Cadastros
@@ -68,6 +69,11 @@ class Cadastros
             $registro['organizacoes'] = array_map('strval', array_column($this->banco->table('vinculos_organizacao')
                 ->select('organizacao_id')->where(['usuario_id' => $id, 'tipo_vinculo' => 'interno', 'fim_em' => null])
                 ->get()->getResultArray(), 'organizacao_id'));
+            $atribuicoes = $this->banco->table('atribuicoes_perfil a')->select('a.organizacao_id, a.perfil_id')
+                ->join('vinculos_organizacao v', 'v.organizacao_id = a.organizacao_id AND v.id = a.vinculo_id')
+                ->where(['v.usuario_id' => $id, 'a.unidade_id' => null, 'a.setor_id' => null])
+                ->orderBy('a.id', 'DESC')->get()->getResultArray();
+            $registro['perfis'] = array_column(array_reverse($atribuicoes), 'perfil_id', 'organizacao_id');
         }
 
         return $registro;
@@ -88,6 +94,7 @@ class Cadastros
             }
 
             if ($id === null) {
+                if ($cadastro === 'clientes') $valores['hash_publico'] = bin2hex(random_bytes(24));
                 $this->executar($this->banco->table($tabela)->insert($valores + ['criado_em' => $agora]));
                 $id = (string) $this->banco->insertID();
             } else {
@@ -99,7 +106,7 @@ class Cadastros
             match ($cadastro) {
                 'clientes' => $this->atualizarContratacao($id, $campos['plano_versao_id'], $agora),
                 'planos' => $this->atualizarVersao($id, $campos, $agora),
-                'usuarios' => $this->atualizarVinculos($id, $campos['organizacoes'], $agora),
+                'usuarios' => $this->atualizarVinculos($id, $campos['organizacoes'], $campos['perfis'] ?? [], $campos['status'], $agora),
             };
         });
     }
@@ -112,6 +119,9 @@ class Cadastros
             $this->bloquearRegistro($tabela, $id);
             if ($cadastro === 'planos') {
                 $this->executar($this->banco->table('plano_versoes')->where('plano_id', $id)->delete());
+            } elseif ($cadastro === 'clientes') {
+                $this->executar($this->banco->table('organizacao_identificadores')
+                    ->where(['organizacao_id' => $id, 'tipo' => 'hash_simulacao'])->delete());
             }
             $this->executar($this->banco->table($tabela)->where('id', $id)->delete());
         });
@@ -164,12 +174,15 @@ class Cadastros
     }
 
     /** Sincroniza os vínculos internos e preserva os vínculos de outros tipos. */
-    private function atualizarVinculos(string $id, array $organizacoes, string $agora): void
+    private function atualizarVinculos(string $id, array $organizacoes, array $perfis, string $status, string $agora): void
     {
         $vinculos = $this->banco->table('vinculos_organizacao')->where('usuario_id', $id)->get()->getResultArray();
         $porOrganizacao = array_column($vinculos, null, 'organizacao_id');
+        $perfisOrganizacao = new PerfisOrganizacao($this->banco);
+        sort($organizacoes, SORT_STRING);
 
         foreach ($organizacoes as $organizacao) {
+            $this->bloquearRegistro('organizacoes', $organizacao);
             $vinculo = $porOrganizacao[$organizacao] ?? null;
             if ($vinculo && $vinculo['tipo_vinculo'] !== 'interno') {
                 throw new DomainException('Já existe um vínculo de outro tipo com uma das organizações selecionadas.');
@@ -182,14 +195,20 @@ class Cadastros
                     'organizacao_id' => $organizacao, 'usuario_id' => $id, 'tipo_vinculo' => 'interno',
                     'status' => 'ativo', 'inicio_em' => $agora, 'criado_em' => $agora,
                 ]));
+                $vinculo = ['id' => $this->banco->insertID()];
             } elseif ($vinculo['fim_em'] !== null) {
                 $this->executar($this->banco->table('vinculos_organizacao')->where('id', $vinculo['id'])
                     ->update(['status' => 'ativo', 'fim_em' => null, 'atualizado_em' => $agora]));
             }
+            $perfisOrganizacao->atribuir($organizacao, (string) $vinculo['id'], $perfis[$organizacao] ?? '', $status, $agora);
         }
 
         foreach ($vinculos as $vinculo) {
             if ($vinculo['tipo_vinculo'] !== 'interno' || $vinculo['fim_em'] !== null || in_array((string) $vinculo['organizacao_id'], $organizacoes, true)) continue;
+            $fundador = $perfisOrganizacao->administrador((string) $vinculo['organizacao_id']);
+            if ($fundador && (string) $fundador['vinculo_id'] === (string) $vinculo['id']) {
+                throw new DomainException('O vínculo do Administrador fundador não pode ser removido.');
+            }
             $this->executar($this->banco->table('vinculos_organizacao')->where('id', $vinculo['id'])
                 ->update(['status' => 'inativo', 'fim_em' => $agora, 'atualizado_em' => $agora]));
         }

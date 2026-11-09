@@ -31,14 +31,6 @@
         exibirAviso('A recuperação de senha ainda não está disponível. Entre em contato com o administrador da sua organização.');
     }
 
-    /** Valida os campos sem transmitir credenciais antes da implementação da autenticação. */
-    function tratarEnvioFormulario(evento) {
-        evento.preventDefault();
-        if (!formulario.reportValidity()) return;
-        exibirAviso('O acesso à conta ainda não está disponível. A autenticação será habilitada em uma próxima etapa.');
-    }
-
     botaoAlternarSenha.addEventListener('click', alternarVisibilidadeSenha);
     botaoRecuperarSenha.addEventListener('click', informarRecuperacaoIndisponivel);
-    formulario.addEventListener('submit', tratarEnvioFormulario);
 })();

@@ -6,6 +6,8 @@
     --admin-texto: #f1eff9;
     --admin-suave: #a9afc4;
     --admin-roxo: #c3a6ff;
+    --admin-campo: #222636;
+    --admin-borda-campo: #515973;
     --admin-lateral: #141622;
     --admin-marca: #29213d;
     --admin-sobre: #212437;
@@ -99,6 +101,8 @@
     --admin-texto: #1c2034;
     --admin-suave: #535c73;
     --admin-roxo: #6530c5;
+    --admin-campo: #fff;
+    --admin-borda-campo: #a0a8bd;
     --admin-lateral: #fff;
     --admin-marca: #f1eaff;
     --admin-sobre: #f1eef8;
@@ -159,14 +163,14 @@
 .acoes-cadastro-admin .botao-admin { min-height: 31px; font-size: 12px; }
 .busca-admin { position: relative; display: block; margin: 0 16px 13px; max-width: 400px; }
 .busca-admin i { position: absolute; inset: 50% auto auto 11px; transform: translateY(-50%); color: var(--admin-suave); pointer-events: none; }
-.busca-admin input, .campos-cadastro-admin :is(input:not([type=checkbox]), select) {
+.busca-admin input, .campos-cadastro-admin :is(input:not([type=checkbox]), select), .barra-consulta-admin select {
     width: 100%;
     min-width: 0;
     min-height: 39px;
     padding: 7px 9px;
-    border: 1px solid var(--admin-borda);
+    border: 1px solid var(--admin-borda-campo);
     border-radius: 6px;
-    background: var(--admin-fundo);
+    background: var(--admin-campo);
     color: var(--admin-texto);
 }
 .busca-admin input { padding-left: 32px; }
@@ -174,8 +178,15 @@
 .voltar-cadastro-admin { margin-bottom: 12px; }
 .formulario-cadastro-admin { width: 100%; }
 .campos-cadastro-admin { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; padding: 0 16px 16px; }
-.campos-cadastro-admin > label { display: grid; align-content: start; gap: 5px; font-weight: 600; }
+.campos-cadastro-admin > label, .campo-cadastro-admin { display: grid; align-content: start; gap: 5px; min-width: 0; font-weight: 600; }
 .campos-cadastro-admin input, .campos-cadastro-admin select { font-weight: 400; }
+.campos-cadastro-admin select, .barra-consulta-admin select { cursor: pointer; }
+.campos-cadastro-admin :is(input, select):focus, .busca-admin input:focus, .barra-consulta-admin select:focus { border-color: var(--admin-roxo); outline: 2px solid var(--admin-roxo); outline-offset: 1px; }
+.controle-senha-admin { display: flex; align-items: stretch; flex-wrap: wrap; gap: 6px; }
+.controle-senha-admin input { flex: 1 1 115px; width: auto !important; }
+.controle-senha-admin button { flex: none; }
+#aviso-senha-admin { color: var(--admin-suave); font-weight: 400; }
+#aviso-senha-admin:empty { display: none; }
 .vinculos-cadastro-admin { grid-column: 1 / -1; min-width: 0; padding: 8px 12px; border: 1px solid var(--admin-borda); border-radius: 7px; }
 .vinculos-cadastro-admin legend { float: none; width: auto; padding: 0 5px; font-size: 14px; font-weight: 600; }
 .vinculos-cadastro-admin label { display: flex; align-items: center; gap: 7px; min-height: 32px; overflow-wrap: anywhere; }
@@ -200,13 +211,12 @@
 .barra-consulta-admin.interna { margin: 10px 0 0; }
 .barra-consulta-admin label { display: grid; gap: 5px; min-width: 0; max-width: 100%; color: var(--admin-suave); font-size: 12px; }
 .barra-consulta-admin select {
+    width: auto;
     min-width: 135px;
     max-width: 100%;
     min-height: 36px;
     padding: 5px 8px;
-    border: 1px solid var(--admin-borda);
     border-radius: 6px;
-    background: var(--admin-painel);
     color: var(--admin-texto);
     font: inherit;
 }
@@ -229,3 +239,7 @@
 .situacao-admin[data-situacao="vencido"] { background: #432632; color: #ffb8c3; }
 [data-tema-admin="claro"] .situacao-admin[data-situacao="aberto"] { background: #fff1ca; color: #724b06; }
 [data-tema-admin="claro"] .situacao-admin[data-situacao="vencido"] { background: #fde9ed; color: #9d2236; }
+
+.vinculo-perfil-admin { display: grid; gap: 4px; padding: 8px 0; border-bottom: 1px solid var(--admin-borda); }
+.vinculo-perfil-admin:last-child { border-bottom: 0; }
+.vinculo-perfil-admin > span { color: var(--admin-suave); font-size: 12px; }

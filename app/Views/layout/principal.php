@@ -14,11 +14,19 @@
     <script src="<?= esc(base_url('assets/js/layout.js'), 'attr') ?>" defer></script>
     <?= $this->renderSection('scripts') ?>
 </head>
-<body class="area-organizacao">
+<?php $chavePreferencias = $identificadorOrganizacao . ':' . (!empty($modoSimulacao) ? 'simulacao' : (!empty($contextoEmpresaReal) ? (string) session()->get(\App\Libraries\Organizacao\AcessoOrganizacao::SESSAO) : 'demo')); ?>
+<body class="area-organizacao<?= !empty($modoSimulacao) ? ' em-simulacao' : '' ?>" data-preferencias-contexto="<?= esc($chavePreferencias, 'attr') ?>">
     <!-- Os fragmentos mantêm o mesmo cabeçalho e navegação nas próximas telas. -->
     <a class="atalho-conteudo" href="#conteudo-principal">Ir para o conteúdo</a>
-    <?= $this->include('layout/cabecalho') ?>
-    <?= $this->include('layout/navegacao') ?>
+    <?php if (!empty($modoSimulacao) || !empty($contextoEmpresaReal)): ?>
+        <?= $this->include('layout/cabecalho_simulacao') ?>
+        <?php if ($administradorSimulado || $consultasPermitidas): ?>
+            <?= $this->include('layout/navegacao_simulacao') ?>
+        <?php endif ?>
+    <?php else: ?>
+        <?= $this->include('layout/cabecalho') ?>
+        <?= $this->include('layout/navegacao') ?>
+    <?php endif ?>
     <main id="conteudo-principal" class="conteudo-principal limite-pagina">
         <?= $this->renderSection('conteudo') ?>
     </main>
