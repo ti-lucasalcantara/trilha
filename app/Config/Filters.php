@@ -57,7 +57,6 @@ class Filters extends BaseFilters
         'after' => [
             'pagecache',   // Web Page Caching
             'performance', // Performance Metrics
-            'toolbar',     // Debug Toolbar
         ],
     ];
 
@@ -77,6 +76,8 @@ class Filters extends BaseFilters
             // 'invalidchars',
         ],
         'after' => [
+            // Evita registrar formulários e consultas com dados administrativos na barra de depuração.
+            'toolbar' => ['except' => ['admin', 'admin/*']],
             // 'honeypot',
             // 'secureheaders',
         ],

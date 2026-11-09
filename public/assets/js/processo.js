@@ -38,17 +38,14 @@
             item.querySelector('.selecionar-documento').setAttribute('aria-pressed', String(item === documento));
         });
         const dados = documento.dataset;
-        document.getElementById('numero-documento-ativo').textContent = dados.numero;
-        document.getElementById('titulo-visualizador').textContent = dados.titulo;
-        document.getElementById('metadados-documento-ativo').textContent = `${dados.tipo} · Versão ${dados.versao} · ${dados.setor}`;
+        document.getElementById('titulo-visualizador').textContent = dados.arquivo;
+        document.getElementById('metadados-documento-ativo').textContent = `Versão ${dados.versao} · ${dados.setor}`;
         document.getElementById('situacao-documento-ativo').className = `estado-documento ${dados.cor}`;
         document.getElementById('texto-situacao-documento').textContent = dados.situacao;
-        document.getElementById('acesso-documento-ativo').lastChild.textContent = dados.acesso;
-        document.getElementById('autor-documento-ativo').textContent = dados.autor;
         document.getElementById('data-documento-ativo').textContent = `Incluído em ${dados.data}`;
         document.getElementById('posicao-documento').textContent = `Documento ${documentos.indexOf(documento) + 1} de ${documentos.length}`;
         document.getElementById('anuncio-documento').textContent = `${dados.titulo} selecionado. As opções agora se referem a este documento.`;
-        if (visualizador) visualizador.title = `PDF — ${dados.titulo}`;
+        if (visualizador) visualizador.title = `PDF — ${dados.arquivo}`;
     }
 
     /** Filtra a lista sem perder a seleção do documento que já está em leitura. */
@@ -100,6 +97,7 @@
         const ampliado = divisaoProcesso.classList.toggle('leitura-ampliada');
         botaoAmpliar.setAttribute('aria-pressed', String(ampliado));
         botaoAmpliar.setAttribute('aria-label', ampliado ? 'Mostrar lista de documentos' : 'Ampliar visualizador');
+        botaoAmpliar.title = botaoAmpliar.getAttribute('aria-label');
         botaoAmpliar.querySelector('i').className = ampliado ? 'fa-solid fa-compress' : 'fa-solid fa-expand';
     }
 
@@ -121,9 +119,58 @@
         document.querySelector('.painel-documentos').style.setProperty('--altura-documentos', `${Math.ceil(alturaVisualizador)}px`);
     }
 
+    /** Ajusta a largura da lista por arraste ou pelo teclado. */
+    function configurarLarguraDocumentos() {
+        const divisoria = document.getElementById('redimensionar-documentos');
+        const painel = divisoria.parentElement;
+        const minimo = 220;
+        let inicio;
+
+        function larguraMaxima() {
+            return Math.min(520, Math.floor(divisaoProcesso.clientWidth * 0.5));
+        }
+
+        function atualizarLarguraAcessivel() {
+            if (!divisoria.offsetWidth) return;
+            divisoria.setAttribute('aria-valuemax', larguraMaxima());
+            divisoria.setAttribute('aria-valuenow', painel.offsetWidth);
+        }
+
+        function aplicarLargura(largura) {
+            const valor = Math.min(larguraMaxima(), Math.max(minimo, Math.round(largura)));
+            divisaoProcesso.style.setProperty('--largura-documentos', `min(${valor}px, 50%)`);
+            atualizarLarguraAcessivel();
+        }
+
+        divisoria.addEventListener('pointerdown', function iniciarAjuste(evento) {
+            if (evento.button !== 0 || inicio) return;
+            inicio = { ponteiro: evento.pointerId, posicao: evento.clientX, largura: painel.offsetWidth };
+            divisoria.setPointerCapture(evento.pointerId);
+            divisoria.classList.add('redimensionando');
+            evento.preventDefault();
+            divisoria.focus({ preventScroll: true });
+        });
+        divisoria.addEventListener('pointermove', function ajustar(evento) {
+            if (inicio?.ponteiro !== evento.pointerId) return;
+            aplicarLargura(inicio.largura + evento.clientX - inicio.posicao);
+        });
+        divisoria.addEventListener('lostpointercapture', function finalizarAjuste() {
+            inicio = null;
+            divisoria.classList.remove('redimensionando');
+        });
+        divisoria.addEventListener('keydown', function ajustarComTeclado(evento) {
+            const larguras = { ArrowLeft: painel.offsetWidth - 16, ArrowRight: painel.offsetWidth + 16, Home: minimo, End: larguraMaxima() };
+            if (!Object.hasOwn(larguras, evento.key)) return;
+            evento.preventDefault();
+            aplicarLargura(larguras[evento.key]);
+        });
+        new ResizeObserver(atualizarLarguraAcessivel).observe(divisaoProcesso);
+    }
+
     const observadorVisualizador = new ResizeObserver(sincronizarAlturaDocumentos);
     observadorVisualizador.observe(document.getElementById('area-visualizador'));
     sincronizarAlturaDocumentos();
+    configurarLarguraDocumentos();
     document.querySelectorAll('[data-acao]').forEach(function configurarAcao(botao) {
         botao.addEventListener('click', function apresentarAcao() { abrirAcao(botao); });
     });
@@ -145,7 +192,6 @@
         const botao = evento.currentTarget;
         const acompanhado = botao.getAttribute('aria-pressed') !== 'true';
         botao.setAttribute('aria-pressed', String(acompanhado));
-        botao.querySelector('span').textContent = acompanhado ? 'Acompanhando' : 'Acompanhar';
         botao.querySelector('i').className = acompanhado ? 'fa-solid fa-star' : 'fa-regular fa-star';
     });
 })();

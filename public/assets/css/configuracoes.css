@@ -1,0 +1,152 @@
+/* Mantém as configurações dentro da identidade da área da organização. */
+.area-organizacao:has(.area-configuracoes) { --trilha-fundo: #fff; }
+.cabecalho-configuracoes { margin: 5px 0 24px; padding-bottom: 20px; border-bottom: 1px solid #e8eaf1; }
+.area-organizacao .cabecalho-configuracoes h1 { margin-block: 6px 4px; font-size: clamp(26px, 3vw, 35px); line-height: 1.2; color: #151c34; }
+.cabecalho-configuracoes p, .cartao-configuracoes header p, .nota-configuracoes { color: #526078; }
+.contexto-configuracoes { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+.cabecalho-configuracoes .contexto-configuracoes { color: #6232c5; font-weight: 600; }
+.area-configuracoes { display: grid; grid-template-columns: 210px minmax(0, 1fr); gap: 22px; }
+.navegacao-configuracoes { display: flex; flex-direction: column; gap: 4px; align-self: start; padding-right: 12px; border-right: 1px solid #e8eaf1; }
+.navegacao-configuracoes a {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 10px;
+    min-height: 40px;
+    color: #364159;
+    border-radius: 7px;
+    text-decoration: none;
+}
+.navegacao-configuracoes a:hover { background: #f2ecff; }
+.navegacao-configuracoes a[aria-current=page] { background: #ebe1ff; color: #4c20b6; font-weight: 700; }
+.conteudo-configuracoes > [hidden], .dialogo-configuracoes [hidden] { display: none; }
+.cartao-configuracoes [hidden] { display: none; }
+.cartao-configuracoes { min-width: 0; background: #fff; border: 1px solid #dce0eb; border-radius: 10px; box-shadow: 0 2px 4px #151c340a; }
+.cartao-configuracoes header { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 10px; padding: 16px; }
+.cartao-configuracoes h2 { display: flex; align-items: center; gap: 7px; font-size: 17px; color: #151c34; }
+.cartao-configuracoes header p { margin-top: 3px; }
+.contagem-configuracoes { padding: 1px 7px; border-radius: 20px; background: #f0ebfc; color: #6232c5; font-size: 11px; }
+.cartao-configuracoes .btn { min-height: 36px; padding-inline: 10px; }
+.lista-configuracoes ul { list-style: none; padding: 0; margin: 0; }
+.linha-configuracoes { border-top: 1px solid #e8eaf1; }
+.resumo-registro {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 11px 15px;
+}
+.icone-registro { flex: none; display: grid; place-items: center; width: 34px; height: 34px; border: 1px solid #e8eaf1; border-radius: 8px; color: #526078; background: #fff; }
+.identificacao-configuracoes { flex: 1 1 90px; min-width: 0; overflow-wrap: anywhere; }
+.identificacao-configuracoes strong, .selecionar-unidade { display: block; font-weight: 700; color: #151c34; }
+.identificacao-configuracoes small { display: block; color: #526078; }
+.selecionar-unidade { display: inline-flex; align-items: baseline; gap: 8px; background: none; border: 0; padding: 5px 0; text-align: left; }
+.selecionar-unidade i { flex: none; font-size: 10px; }
+.selecionar-unidade:hover { text-decoration: underline; }
+/* Alterna os fundos das unidades fechadas e os tons de roxo das abertas. */
+#lista-unidades > ul > .linha-configuracoes:nth-child(even):not(.unidade-selecionada) { background: #f5f6fa; }
+.unidade-selecionada { padding-bottom: 22px; background: #f6f1ff; box-shadow: inset 3px 0 var(--trilha-roxo); }
+#lista-unidades > ul > .unidade-selecionada:nth-child(even) { background: #eee6fc; }
+.unidade-selecionada .selecionar-unidade { color: #4c20b6; }
+.lista-configuracoes li:last-child { border-radius: 0 0 9px 9px; }
+/* Exibe os setores no mesmo fluxo da unidade, com recuo de hierarquia. */
+.setores-da-unidade { margin: 0 14px 0 36px; padding-left: 12px; border-left: 2px solid #ded1fa; }
+.setores-da-unidade[hidden] { display: none; }
+.setores-da-unidade header { align-items: center; padding: 4px 0 8px; }
+.setores-da-unidade h3 { font-size: 14px; color: #151c34; }
+.setores-da-unidade .lista-configuracoes { background: #fff; border: 1px solid #e8eaf1; border-radius: 7px; }
+.setores-da-unidade .linha-configuracoes:first-child { border-top: 0; }
+.setores-da-unidade .resumo-registro { padding: 8px 10px; }
+.acoes-configuracoes { display: flex; flex-wrap: wrap; gap: 4px; }
+.controle-configuracoes {
+    min-height: 34px;
+    padding: 5px 8px;
+    border: 1px solid #dce0eb;
+    border-radius: 6px;
+    background: #fff;
+    color: #364159;
+}
+.controle-configuracoes:hover { background: #f2ecff; color: #4c20b6; }
+.controle-registro { width: 34px; padding: 0; }
+.controle-registro.remover:hover { background: #fff1f1; color: #a71b27; }
+.busca-equipe { position: relative; display: block; margin: 0 16px 14px; max-width: 380px; }
+.busca-equipe i { position: absolute; inset: 50% auto auto 11px; transform: translateY(-50%); color: #526078; pointer-events: none; }
+.busca-equipe input, #campos-configuracoes input:not([type=checkbox]), #campos-configuracoes select, #campos-configuracoes textarea {
+    min-width: 0;
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #bfc7d7;
+    border-radius: 6px;
+    background: #fff;
+    color: #151c34;
+}
+.busca-equipe input { padding-left: 32px; }
+/* Separa visualmente a identificação, os vínculos e o escopo. */
+#equipe .resumo-registro, #permissoes .resumo-registro { padding-block: 13px; }
+:is(#equipe, #permissoes) .linha-configuracoes:nth-child(even) { background: #f7f8fb; }
+.avatar-equipe { border: 0; border-radius: 50%; background: #eee6fc; color: #4c20b6; font-size: 12px; font-weight: 700; }
+.marcadores-configuracoes { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 5px; }
+.marcadores-configuracoes span { padding: 2px 7px; border-radius: 5px; background: #eee6fc; color: #4c20b6; font-size: 11px; }
+.vinculos-pessoa { margin-top: 8px; }
+.abas-pessoa { display: flex; gap: 5px; flex-wrap: wrap; }
+.abas-pessoa button { min-height: 30px; padding: 3px 9px; border: 1px solid transparent; border-radius: 5px; background: transparent; color: #526078; font-size: 12px; }
+.abas-pessoa button:hover { color: #4c20b6; }
+.abas-pessoa button[aria-selected=true] { border-color: #ded1fa; background: #f6f1ff; color: #4c20b6; font-weight: 600; }
+.painel-vinculos-pessoa { margin-top: 6px; }
+
+/* Separa as abas dos perfis das abas internas de permissões e usuários. */
+.seletor-abas-perfis { display: flex; align-items: flex-start; gap: 8px; padding: 0 16px 12px; border-bottom: 1px solid #e8eaf1; }
+.seletor-abas-perfis > button { flex: none; min-width: 36px; }
+#abas-perfis-cadastrados { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; }
+#abas-perfis-cadastrados button { min-height: 36px; max-width: 100%; padding: 5px 10px; border: 1px solid #dce0eb; border-radius: 6px; background: #fff; color: #364159; overflow-wrap: anywhere; }
+#abas-perfis-cadastrados button:hover, #abas-perfis-cadastrados button[aria-selected=true] { background: #eee6fc; border-color: #ded1fa; color: #4c20b6; }
+#abas-perfis-cadastrados button[aria-selected=true] { font-weight: 700; }
+.barra-perfil { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; padding: 12px 16px; }
+.barra-perfil > div:first-child { min-width: 0; overflow-wrap: anywhere; }
+.barra-perfil h3 { font-size: 15px; color: #151c34; }
+.barra-perfil p { color: #526078; }
+.barra-perfil .remover:hover { background: #fff1f1; color: #a71b27; }
+.abas-perfil { display: flex; gap: 16px; padding-inline: 16px; border-bottom: 1px solid #dce0eb; }
+.abas-perfil button { display: flex; align-items: center; gap: 6px; min-height: 42px; padding: 0 6px; border: 0; border-bottom: 2px solid transparent; background: #fff; color: #526078; }
+.abas-perfil button[aria-selected=true] { border-bottom-color: var(--trilha-roxo); color: #4c20b6; font-weight: 700; }
+#formulario-permissoes-perfil { padding: 15px 16px; }
+#formulario-permissoes-perfil p { color: #526078; }
+#formulario-permissoes-perfil .btn { margin-top: 12px; }
+.marcacoes-perfil { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 235px), 1fr)); gap: 10px; margin-top: 10px; }
+.marcacoes-perfil fieldset { min-width: 0; padding: 5px 10px 8px; border: 1px solid #dce0eb; border-radius: 7px; }
+.marcacoes-perfil legend { float: none; width: auto; margin: 0; padding: 0 4px; font-size: 13px; font-weight: 700; }
+#painel-usuarios-perfil h3 { font-size: 15px; }
+.vazio-configuracoes { padding: 12px 15px; color: #526078; }
+.conteudo-configuracoes .nota-configuracoes { margin-top: 11px; font-size: 12px; }
+
+/* Organiza os campos e as permissões de cada módulo em um modal compacto. */
+.dialogo-configuracoes {
+    width: min(480px, calc(100% - 24px));
+    max-height: calc(100dvh - 24px);
+    padding: 20px;
+    border: 1px solid #dce0eb;
+    border-radius: 10px;
+    color: #151c34;
+    background: #fff;
+}
+.dialogo-configuracoes::backdrop { background: #151c3466; }
+.dialogo-configuracoes h2 { font-size: 20px; }
+#campos-configuracoes { display: grid; gap: 11px; margin: 14px 0; }
+.campo-configuracoes { display: grid; gap: 4px; }
+#campos-configuracoes fieldset { min-width: 0; padding: 7px 9px; border: 1px solid #dce0eb; border-radius: 7px; }
+#campos-configuracoes legend { float: none; width: auto; margin: 0; padding: 0 4px; font-size: 13px; font-weight: 600; }
+.marcacao-configuracoes { display: flex; align-items: center; gap: 8px; min-height: 32px; cursor: pointer; }
+.marcacao-configuracoes input { accent-color: var(--trilha-roxo); }
+#campos-configuracoes textarea { resize: vertical; }
+#erro-configuracoes { color: #a71b27; }
+.dialogo-configuracoes footer { display: flex; justify-content: flex-end; gap: 7px; margin-top: 12px; }
+.dialogo-configuracoes footer .btn { padding-inline: 12px; }
+
+@media (max-width: 650px) {
+    .area-configuracoes { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+    .navegacao-configuracoes { flex-direction: row; flex-wrap: wrap; padding-right: 0; border-right: 0; }
+    .navegacao-configuracoes a { padding: 8px; }
+    .setores-da-unidade { margin-left: 15px; padding-left: 8px; }
+    .busca-equipe input, #campos-configuracoes input:not([type=checkbox]), #campos-configuracoes select, #campos-configuracoes textarea { font-size: 16px; }
+}

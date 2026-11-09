@@ -9,12 +9,27 @@
 <?= $this->endSection() ?>
 
 <?= $this->section('conteudo') ?>
-<div class="caminho-processo"><a href="<?= esc(site_url('organizacao/' . $identificadorOrganizacao . '/processos'), 'attr') ?>"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i>Processos</a><i class="fa-solid fa-chevron-right" aria-hidden="true"></i><span><?= esc($processo['numero']) ?></span><span class="indicacao-exemplo">Processo demonstrativo</span></div>
-<header class="cabecalho-processo"><div><p class="numero-processo"><?= esc($processo['numero']) ?></p><h1><?= esc($processo['assunto']) ?></h1><div class="resumo-processo"><span class="situacao-processo roxo"><span></span><?= esc($processo['situacao']) ?></span><span><i class="fa-regular fa-building" aria-hidden="true"></i><?= esc($processo['unidade'] . ' / ' . $processo['setor']) ?></span><span><i class="fa-solid fa-shield-halved" aria-hidden="true"></i><?= esc($processo['acesso']) ?></span><span><i class="fa-regular fa-file-lines" aria-hidden="true"></i><?= esc((string) count($documentos)) ?> documentos</span></div></div><button type="button" id="acompanhar-processo" class="botao-acompanhar" aria-pressed="<?= $processo['acompanhado'] ? 'true' : 'false' ?>"><i class="<?= $processo['acompanhado'] ? 'fa-solid' : 'fa-regular' ?> fa-star" aria-hidden="true"></i><span><?= $processo['acompanhado'] ? 'Acompanhando' : 'Acompanhar' ?></span></button></header>
-
-<!-- As ações do processo ocupam toda a largura, acima dos documentos e do PDF. -->
-<section class="area-processo" data-acesso="<?= esc($processo['acesso'], 'attr') ?>" aria-label="Documentos e leitura do processo">
+<nav class="caminho-processo" aria-label="Caminho do processo">
+    <span>Processos</span>
+    <span aria-hidden="true">/</span>
+    <span class="numero-processo"><?= esc($processo['numero']) ?></span>
+    <a class="voltar-processos acao-processo" href="<?= esc(site_url('organizacao/' . $identificadorOrganizacao . '/processos'), 'attr') ?>"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i>Voltar</a>
+</nav>
+<header class="cabecalho-processo">
+    <div>
+        <h1><?= esc($processo['assunto']) ?></h1>
+        <div class="resumo-processo">
+            <?php $coresSituacao = ['Aberto' => 'azul', 'Em análise' => 'laranja', 'Em andamento' => 'roxo', 'Concluído' => 'verde']; ?>
+            <span class="estado-documento <?= esc($coresSituacao[$processo['situacao']] ?? 'neutro', 'attr') ?>"><span></span><?= esc($processo['situacao']) ?></span>
+            <span><i class="fa-regular fa-building" aria-hidden="true"></i><?= esc($processo['unidade'] . ' / ' . $processo['setor']) ?></span>
+            <span><i class="fa-solid fa-shield-halved" aria-hidden="true"></i><?= esc($processo['acesso']) ?></span>
+        </div>
+    </div>
     <?= $this->include('organizacao/processo/tarefas') ?>
+</header>
+
+<!-- Mantém a lista de documentos ao lado da área de leitura. -->
+<section class="area-processo" data-acesso="<?= esc($processo['acesso'], 'attr') ?>" aria-label="Documentos e leitura do processo">
     <div class="divisao-processo" id="divisao-processo">
         <?= $this->include('organizacao/processo/documentos') ?>
         <?= $this->include('organizacao/processo/visualizador') ?>

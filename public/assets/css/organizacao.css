@@ -31,3 +31,38 @@
 @media(max-width:850px){.limite-pagina{width:calc(100% - 32px)}.nome-usuario{display:none}.identidade-contexto{gap:16px}.menu-contexto{padding-left:16px}.navegacao-principal{gap:17px;flex-wrap:wrap}.identificacao-previa{display:none}.item-navegacao{font-size:11px!important}.resumos-trabalho{grid-template-columns:repeat(2,minmax(0,1fr))}.titulo-acoes h1{font-size:26px}.menu-configuracoes .conteudo-menu{left:auto;right:0}.linha-contexto{margin-bottom:23px}.rodape-aplicacao{font-size:10px}}
 @media(max-width:600px){.linha-cabecalho{min-height:75px;gap:10px}.marca-aplicacao img{width:91px;height:36px}.identidade-contexto{gap:10px}.menu-contexto{padding-left:10px}.icone-organizacao,.nome-usuario,.menu-usuario .seta-menu,.atalho-pesquisa{display:none}.menu-contexto summary{gap:4px}.menu-contexto summary strong{font-size:11px;max-width:115px}.menu-contexto summary small{font-size:10px}.ferramentas-cabecalho{gap:6px}.menu-usuario{padding-left:8px}.avatar-usuario{width:29px;height:29px;font-size:11px}.menu-contexto .conteudo-menu{left:-95px;min-width:260px}.menu-notificacoes .conteudo-menu{right:-39px;min-width:270px;max-width:calc(100vw - 32px)}.linha-navegacao{display:block}.alternar-menu{display:flex;align-items:center;gap:9px;padding:13px 0;background:none;border:0;font-size:12px;color:#977da8}.navegacao-principal{display:none;padding-bottom:14px;gap:0;flex-direction:column;align-items:stretch}.navegacao-principal.menu-aberto{display:flex}.item-navegacao{padding:13px 10px;border:0;border-radius:6px;font-size:12px!important}.item-navegacao.ativo{background:#f5edff}.menu-configuracoes .conteudo-menu{position:static;box-shadow:none;min-width:0;margin:0 0 5px;background:#fbf9fe}.conteudo-principal{padding-top:18px}.linha-contexto{align-items:flex-start;flex-direction:column;gap:12px}.caminho-pagina{font-size:10px}.seletor-contexto{font-size:11px}.titulo-acoes{align-items:flex-start;flex-direction:column;gap:17px;margin-bottom:22px}.titulo-acoes h1{font-size:25px}.descricao-pagina{font-size:12px;line-height:1.7}.botao-novo{min-height:42px}.resumos-trabalho{gap:10px;margin-bottom:20px}.resumo-trabalho{padding:14px 12px}.resumo-trabalho small{font-size:10px;line-height:1.7}.resumo-trabalho>div>span{font-size:11px}.resumo-trabalho strong{font-size:25px}.icone-resumo{width:26px;height:26px;font-size:12px;border-radius:7px}.cabecalho-painel{padding:17px 14px}.cabecalho-painel h2{font-size:13px}.cabecalho-painel p{font-size:10px}.selo-demonstracao{font-size:10px;padding:3px 5px}.abas-caixa{padding:0 14px;gap:14px;flex-wrap:wrap}.abas-caixa button{padding-top:7px;font-size:10px;gap:5px;min-height:37px}.ferramentas-listagem{padding:14px;gap:9px;flex-wrap:wrap}.campo-pesquisa{flex-basis:100%}.campo-pesquisa input{max-width:none;font-size:16px;padding-top:10px;padding-bottom:10px}.filtro-tipo select{font-size:12px;min-height:38px}.coluna-acompanhamento{grid-template-columns:1fr}.rodape-listagem{padding:14px;font-size:10px}.grade-detalhe{grid-template-columns:1fr;gap:20px}.introducao-detalhe h2{font-size:19px}.acoes-detalhe{flex-wrap:wrap}.acoes-detalhe .btn{min-height:42px}.rodape-aplicacao{padding-top:28px;gap:10px}.opcao-menu{min-height:44px}.conteudo-menu{max-width:calc(100vw - 32px)}}
 @media(prefers-reduced-motion:reduce){.area-organizacao *{transition:none!important;scroll-behavior:auto!important}}
+
+/* Posiciona os avisos de operações reversíveis no canto inferior esquerdo. */
+.aviso-desfazer {
+    position: fixed;
+    z-index: 20;
+    left: 16px;
+    bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 8px 12px;
+    max-width: calc(100% - 32px);
+    border-radius: 8px;
+    overflow: hidden;
+    background: #25213a;
+    color: #fff;
+    box-shadow: 0 4px 14px #151c3433;
+}
+.aviso-desfazer button {
+    min-height: 36px;
+    padding: 5px 10px;
+    border: 0;
+    border-radius: 5px;
+    background: #eee8ff;
+    color: #491bc0;
+    font-weight: 600;
+}
+.aviso-desfazer[hidden] { display: none; }
+.progresso-desfazer {
+    position: absolute;
+    inset: auto 0 0;
+    height: 4px;
+    background: #b69aff;
+    transform-origin: left;
+}
