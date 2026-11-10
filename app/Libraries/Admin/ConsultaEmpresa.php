@@ -67,7 +67,7 @@ class ConsultaEmpresa
     }
 
     /** Pagina o inventário por categoria, usando somente colunas autorizadas para a consulta administrativa. */
-    public function inventario(string $categoria, int $pagina, ?string $setor = null): array
+    public function inventario(string $categoria, int $pagina, ?string $setor = null, ?string $vinculo = null): array
     {
         $categorias = ['equipe' => 'Equipe'] + array_map(static fn (array $definicao) => $definicao[0], self::INVENTARIO);
         if (!isset($categorias[$categoria])) $categoria = 'processos';
@@ -87,13 +87,18 @@ class ConsultaEmpresa
         // O inventário do Admin continua global. A área de trabalho usa o setor ativo.
         if ($setor !== null) {
             if ($categoria === 'processos') {
+                $consulta->where(['processos.arquivado_em' => null, 'processos.excluido_em' => null]);
                 $consulta->where(ContextoSetor::condicaoProcessos($this->banco, $setor, 'processos'), null, false);
+                if ($vinculo !== null) $consulta->where(\App\Libraries\Organizacao\PoliticaProcesso::condicao($this->banco, 'processos', $vinculo), null, false);
             } elseif ($categoria === 'documentos' || $categoria === 'pastas') {
                 $consulta->where($categoria === 'pastas' ? 'setor_id' : 'setor_origem_id', $setor ?: '0');
+                if ($categoria === 'documentos') $consulta->where($this->condicaoDocumento('documentos', $vinculo), null, false);
             } elseif ($categoria === 'assinaturas') {
-                $consulta->whereIn('documento_versao_id', $this->banco->table('documento_versoes v')->select('v.id')
+                $versoes = $this->banco->table('documento_versoes v')->select('v.id')
                     ->join('documentos d', 'd.organizacao_id = v.organizacao_id AND d.id = v.documento_id')
-                    ->where(['v.organizacao_id' => $this->empresa, 'd.setor_origem_id' => $setor ?: '0']));
+                    ->where(['v.organizacao_id' => $this->empresa, 'd.setor_origem_id' => $setor ?: '0']);
+                $versoes->where($this->condicaoDocumento('d', $vinculo), null, false);
+                $consulta->whereIn('documento_versao_id', $versoes);
             }
         }
 
@@ -105,6 +110,16 @@ class ConsultaEmpresa
             'registros' => $consulta->get(25, ($pagina - 1) * 25)->getResultArray(),
             'pagina' => $pagina, 'paginas' => $paginas, 'total' => $total,
         ];
+    }
+
+    /** Protege documentos com acesso limitado e oculta os vinculados à lixeira na área de trabalho. */
+    private function condicaoDocumento(string $alias, ?string $vinculo): string
+    {
+        $documento = $vinculo === null ? '' : \App\Libraries\Organizacao\PoliticaProcesso::condicao($this->banco, $alias, $vinculo, true) . ' AND ';
+        $processo = $vinculo === null ? '' : ' AND ' . \App\Libraries\Organizacao\PoliticaProcesso::condicao($this->banco, 'principal', $vinculo);
+        return "({$documento}({$alias}.processo_principal_id IS NULL OR EXISTS (
+            SELECT 1 FROM processos principal WHERE principal.organizacao_id = {$alias}.organizacao_id
+                AND principal.id = {$alias}.processo_principal_id AND principal.excluido_em IS NULL{$processo})))";
     }
 
     /** Obtém apenas os setores e as atribuições do vínculo selecionado na empresa. */

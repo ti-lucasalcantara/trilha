@@ -21,6 +21,12 @@
         <a href="#estrutura" data-pagina-configuracoes="estrutura"><i class="fa-regular fa-building" aria-hidden="true"></i>Estrutura</a>
         <a href="#equipe" data-pagina-configuracoes="equipe"><i class="fa-solid fa-users" aria-hidden="true"></i>Equipe</a>
         <a href="#permissoes" data-pagina-configuracoes="permissoes"><i class="fa-solid fa-shield-halved" aria-hidden="true"></i>Perfis e permissões</a>
+        <?php if (isset($tiposProcesso)): ?>
+            <a href="#tipos-processo" data-pagina-configuracoes="tipos-processo"><i class="fa-regular fa-file-lines" aria-hidden="true"></i>Tipos de processo</a>
+        <?php endif ?>
+        <?php if (isset($situacoesProcesso)): ?>
+            <a href="#situacoes-processo" data-pagina-configuracoes="situacoes-processo"><i class="fa-solid fa-list-check" aria-hidden="true"></i>Situações de processo</a>
+        <?php endif ?>
     </nav>
     <div class="conteudo-configuracoes">
         <section id="estrutura" aria-label="Unidades e setores">
@@ -72,6 +78,12 @@
                 </div>
             </article>
         </section>
+        <?php if (isset($tiposProcesso)): ?>
+            <?= $this->include('organizacao/configuracoes/tipos_processo') ?>
+        <?php endif ?>
+        <?php if (isset($situacoesProcesso)): ?>
+            <?= $this->include('organizacao/configuracoes/situacoes_processo') ?>
+        <?php endif ?>
         <?php if (isset($configuracoesReais) && ($mensagem = session()->getFlashdata('sucessoSimulacao'))): ?>
             <p class="alert alert-success" role="status"><?= esc($mensagem) ?></p>
         <?php elseif (isset($configuracoesReais) && ($mensagem = session()->getFlashdata('erroSimulacao'))): ?>

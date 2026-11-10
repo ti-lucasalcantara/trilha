@@ -1,3 +1,10 @@
+<?php if (!$documentos): ?>
+    <section class="area-visualizador" id="area-visualizador" aria-labelledby="titulo-visualizador">
+        <header class="cabecalho-visualizador"><h2 id="titulo-visualizador">Visualização do documento</h2></header>
+        <div class="moldura-pdf"><div class="pdf-indisponivel"><i class="fa-regular fa-file-pdf" aria-hidden="true"></i><h3>Nenhum documento disponível</h3><p>Os documentos disponíveis para você aparecerão à esquerda.</p></div></div>
+    </section>
+    <?php return; ?>
+<?php endif ?>
 <?php $documentoInicial = $documentos[0]; ?>
 <!-- Os controles externos complementam o visualizador nativo do navegador. -->
 <section class="area-visualizador" id="area-visualizador" aria-labelledby="titulo-visualizador">
@@ -34,6 +41,8 @@
     <div class="moldura-pdf">
         <?php if ($pdfDisponivel): ?>
             <iframe id="visualizador-pdf" src="<?= esc($enderecoPdf . '#page=1&view=FitH&navpanes=0', 'attr') ?>" title="PDF — <?= esc($documentoInicial['nomeArquivo'], 'attr') ?>"></iframe>
+        <?php elseif (!empty($consultaReal)): ?>
+            <div class="pdf-indisponivel" role="status"><i class="fa-regular fa-file-pdf" aria-hidden="true"></i><h3>Pré-visualização indisponível</h3><p>A exibição do arquivo depende da integração com o armazenamento.</p></div>
         <?php else: ?>
             <div class="pdf-indisponivel" role="status"><i class="fa-regular fa-file-pdf" aria-hidden="true"></i><h3>PDF de teste ainda não disponível</h3><p>Adicione o arquivo em public/pdf/teste.pdf e atualize a página.</p></div>
         <?php endif ?>

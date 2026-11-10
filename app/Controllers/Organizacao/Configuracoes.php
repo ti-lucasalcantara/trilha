@@ -7,6 +7,8 @@ use App\Libraries\Admin\SimulacaoEmpresa;
 use App\Libraries\Organizacao\AcessoOrganizacao;
 use App\Libraries\Organizacao\ContextoSetor;
 use App\Libraries\Organizacao\GestaoEquipe;
+use App\Libraries\Organizacao\GestaoTiposProcesso;
+use App\Libraries\Organizacao\GestaoSituacoesProcesso;
 use CodeIgniter\HTTP\ResponseInterface;
 
 /** Abre a prévia administrativa da organização demonstrativa. */
@@ -41,6 +43,12 @@ class Configuracoes extends BaseController
                 'contextoEmpresaReal' => !$simulada, 'modoSimulacao' => $simulada, 'administradorSimulado' => true,
                 'consultasPermitidas' => [], 'empresaSimulada' => $contexto['empresa'],
                 'contextoTrabalho' => (new ContextoSetor($banco, (string) $contexto['empresa'], null))->obter(),
+                'tiposProcesso' => (new GestaoTiposProcesso($banco, (string) $contexto['empresa']))->listar(),
+                'edicaoTipoProcesso' => $this->request->getGet('tipo'),
+                'exclusaoTipoProcesso' => $this->request->getGet('excluir_tipo'),
+                'situacoesProcesso' => (new GestaoSituacoesProcesso($banco, (string) $contexto['empresa']))->listar(),
+                'edicaoSituacaoProcesso' => $this->request->getGet('situacao'),
+                'exclusaoSituacaoProcesso' => $this->request->getGet('excluir_situacao'),
                 'configuracoesReais' => (new GestaoEquipe($banco, (string) $contexto['empresa']))->dadosConfiguracoes() + [
                     'estrutura' => $base . ($simulada ? '/simulacao/estrutura' : '/estrutura'),
                     'equipe' => $simulada ? null : $base . '/equipe',

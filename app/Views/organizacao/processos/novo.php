@@ -1,5 +1,9 @@
 <?= $this->extend('layout/principal') ?>
 
+<?= $this->section('scripts') ?>
+<script src="<?= esc(base_url('assets/js/novo-processo.js'), 'attr') ?>" defer></script>
+<?= $this->endSection() ?>
+
 <?= $this->section('conteudo') ?>
 <?php
 // A origem é a seleção vigente no cabeçalho e será conferida novamente ao gravar.
@@ -75,8 +79,40 @@ if ($modoSimulacao && !$responsaveis) $pendencias[] = 'Vincule um usuário inter
         <dl class="row gy-2 mb-0">
             <div class="col-12 col-md-4"><dt>Unidade</dt><dd><?= esc($unidade ?: 'Aguardando seleção') ?></dd></div>
             <div class="col-12 col-md-4"><dt>Setor</dt><dd><?= esc($setor ? $setor['nome'] . ($setor['sigla'] ? ' - ' . $setor['sigla'] : '') : 'Aguardando seleção') ?></dd></div>
-            <div class="col-12 col-md-4"><dt>Nível de acesso</dt><dd>Interno</dd></div>
         </dl>
+        <label class="form-label mt-3" for="acesso-processo">Nível de acesso</label>
+        <select class="form-select" id="acesso-processo" name="acesso" required aria-describedby="ajuda-acesso-processo">
+            <?php foreach ($niveisAcesso as $codigo => $rotulo): ?>
+                <option value="<?= esc($codigo, 'attr') ?>" <?= old('acesso', 'interno', false) === $codigo ? 'selected' : '' ?>><?= esc($rotulo) ?></option>
+            <?php endforeach ?>
+        </select>
+        <p class="form-hint" id="ajuda-acesso-processo">Interno é acessível à equipe da organização no contexto de trabalho. Restrito permite setores específicos. Confidencial permite pessoas específicas.</p>
+        <fieldset class="mt-3" data-acesso-processo="restrito" hidden disabled>
+            <legend class="form-label">Setores autorizados</legend>
+            <div class="row g-2">
+                <?php foreach ($contextoTrabalho['unidades'] as $grupo): ?>
+                    <div class="col-12 col-md-6">
+                        <strong><?= esc($grupo['nome']) ?></strong>
+                        <?php foreach ($grupo['setores'] as $opcao): ?>
+                            <label class="form-check">
+                                <input class="form-check-input" type="checkbox" name="setores_autorizados[]" value="<?= esc($opcao['id'], 'attr') ?>" <?= in_array($opcao['id'], (array) old('setores_autorizados', [], false), true) ? 'checked' : '' ?>>
+                                <span class="form-check-label"><?= esc($opcao['nome']) ?></span>
+                            </label>
+                        <?php endforeach ?>
+                    </div>
+                <?php endforeach ?>
+            </div>
+        </fieldset>
+        <fieldset class="mt-3" data-acesso-processo="confidencial" hidden disabled>
+            <legend class="form-label">Pessoas autorizadas</legend>
+            <p class="form-hint mb-2">Inclua seu próprio vínculo se precisar consultar o processo depois de abri-lo.</p>
+            <?php foreach ($pessoasAcesso as $pessoa): ?>
+                <label class="form-check">
+                    <input class="form-check-input" type="checkbox" name="pessoas_autorizadas[]" value="<?= esc((string) $pessoa['vinculo_id'], 'attr') ?>" <?= in_array((string) $pessoa['vinculo_id'], (array) old('pessoas_autorizadas', [], false), true) ? 'checked' : '' ?>>
+                    <span class="form-check-label"><?= esc($pessoa['nome'] . ' · ' . $pessoa['email']) ?></span>
+                </label>
+            <?php endforeach ?>
+        </fieldset>
         <?php if ($modoSimulacao): ?>
             <label class="form-label mt-3" for="responsavel-processo">Registrar em nome de</label>
             <select class="form-select" id="responsavel-processo" name="responsavel" required>

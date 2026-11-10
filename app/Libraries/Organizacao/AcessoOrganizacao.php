@@ -49,6 +49,7 @@ class AcessoOrganizacao
                 'a.unidade_id' => null, 'a.setor_id' => null, 'p.status' => 'ativo'])
             ->get()->getResultArray();
         $codigos = array_column($registros, 'codigo');
-        return array_values(array_filter(['unidades', 'setores'], static fn ($modulo) => in_array('organizacao.' . $modulo . '.consultar', $codigos, true)));
+        return ['processos', ...array_values(array_filter(['unidades', 'setores'],
+            static fn ($modulo) => in_array('organizacao.' . $modulo . '.consultar', $codigos, true)))];
     }
 }

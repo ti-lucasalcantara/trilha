@@ -15,6 +15,9 @@
     <span class="numero-processo"><?= esc($processo['numero']) ?></span>
     <a class="voltar-processos acao-processo" href="<?= esc(site_url('organizacao/' . $identificadorOrganizacao . '/processos'), 'attr') ?>"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i>Voltar</a>
 </nav>
+<?php if (!empty($consultaReal) && ($mensagem = session()->getFlashdata('processoAberto'))): ?>
+    <p class="alert alert-success" role="status"><?= esc($mensagem) ?></p>
+<?php endif ?>
 <header class="cabecalho-processo">
     <div>
         <h1><?= esc($processo['assunto']) ?></h1>
@@ -29,15 +32,20 @@
 </header>
 
 <!-- Mantém a lista de documentos ao lado da área de leitura. -->
-<section class="area-processo" data-acesso="<?= esc($processo['acesso'], 'attr') ?>" aria-label="Documentos e leitura do processo">
+<section class="area-processo" data-acesso="<?= esc($processo['acesso'], 'attr') ?>" <?= !empty($consultaReal) ? 'data-processo-real' : '' ?> aria-label="Documentos e leitura do processo">
     <div class="divisao-processo" id="divisao-processo">
         <?= $this->include('organizacao/processo/documentos') ?>
         <?= $this->include('organizacao/processo/visualizador') ?>
     </div>
 </section>
-<p class="nota-leitura"><i class="fa-solid fa-circle-info" aria-hidden="true"></i>Todos os documentos utilizam o mesmo PDF de teste. As ações são prévias visuais e não alteram o processo.</p>
+<?php if (!empty($consultaReal)): ?>
+    <?php if ($processo['descricao']): ?><p class="nota-leitura"><?= esc($processo['descricao']) ?></p><?php endif ?>
+    <p class="nota-leitura"><i class="fa-solid fa-circle-info" aria-hidden="true"></i>As ações de documentos e tramitação estão em preparação.</p>
+<?php else: ?>
+    <p class="nota-leitura"><i class="fa-solid fa-circle-info" aria-hidden="true"></i>Todos os documentos utilizam o mesmo PDF de teste. As ações são prévias visuais e não alteram o processo.</p>
+<?php endif ?>
 <?= $this->endSection() ?>
 
 <?= $this->section('dialogos') ?>
-<?= $this->include('organizacao/processo/dialogos') ?>
+<?= $this->include(!empty($consultaReal) ? 'organizacao/processo/dialogos_reais' : 'organizacao/processo/dialogos') ?>
 <?= $this->endSection() ?>

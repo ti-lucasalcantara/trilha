@@ -22,16 +22,18 @@ class AberturaProcesso
         ];
     }
 
-    /** Grava o processo, seu estado inicial e sua política de acesso interno. */
+    /** Grava o processo, seu estado inicial e as concessões selecionadas. */
     public function abrir(array $dados, array $setor, string $autor, int $ano): string
     {
-        $agora = date('Y-m-d H:i:s');
         $this->banco->transException(true);
         if (!$this->banco->transBegin()) throw new DomainException('Não foi possível iniciar a abertura do processo.');
         try {
             $this->banco->query('SELECT id FROM organizacoes WHERE id = ? FOR UPDATE', [$this->empresa]);
-            if (!$this->cadastroAtivo('tipos_processo')->where('id', $dados['tipo'])->countAllResults()
-                || !$this->cadastroAtivo('status_processo')->where('id', $dados['situacao'])->countAllResults()) {
+            $agora = date('Y-m-d H:i:s');
+            // Mantém a situação ativa até concluir a abertura, mesmo durante uma edição concorrente.
+            $situacao = $this->banco->query('SELECT id FROM status_processo WHERE organizacao_id = ? AND id = ? AND ativo = 1 FOR UPDATE',
+                [$this->empresa, $dados['situacao']])->getRowArray();
+            if (!$this->cadastroAtivo('tipos_processo')->where('id', $dados['tipo'])->countAllResults() || !$situacao) {
                 throw new DomainException('Selecione um tipo e uma situação ativos desta organização.');
             }
 
@@ -58,14 +60,16 @@ class AberturaProcesso
             $base = max((int) $ultimo, (int) ($contador['ultimo_numero'] ?? 0));
             if ($base === PHP_INT_MAX) throw new DomainException('A sequência deste tipo atingiu o limite.');
             $numero = $base + 1;
-            $numeroCompleto = $this->formatarNumero($regra, $numero, $ano);
+            $numeroCompleto = self::formatarNumero($regra, $numero, $ano);
             if ($this->banco->table('processos')->where([
                 'organizacao_id' => $this->empresa, 'numero_completo' => $numeroCompleto,
             ])->countAllResults()) {
                 throw new DomainException('A regra gerou um número já usado. Revise a configuração da numeração deste tipo.');
             }
 
+            $hash = bin2hex(random_bytes(24));
             $this->banco->table('processos')->insert($sequencia + [
+                'hash_publico' => $hash,
                 'tipo_processo_versao_id' => $versao['id'], 'regra_numeracao_id' => $regra['id'],
                 'numero_sequencial' => $numero, 'numero_completo' => $numeroCompleto,
                 'assunto' => $dados['assunto'], 'descricao' => $dados['descricao'] === '' ? null : $dados['descricao'],
@@ -78,8 +82,17 @@ class AberturaProcesso
                 'estado_novo_id' => $dados['situacao'], 'autor_id' => $autor, 'ocorrido_em' => $agora,
             ]);
             $this->banco->table('politicas_acesso')->insert($registro + [
-                'nivel' => 'interno', 'herda_processo' => 0, 'alterada_por' => $autor,
+                'nivel' => $dados['acesso'], 'herda_processo' => 0, 'alterada_por' => $autor,
             ]);
+            $politica = (string) $this->banco->insertID();
+            foreach ($dados['autorizados'] as $autorizado) {
+                $campo = $dados['acesso'] === 'restrito' ? 'setor_id' : 'vinculo_id';
+                $this->banco->table('concessoes_acesso')->insert([
+                    'organizacao_id' => $this->empresa, 'politica_id' => $politica, $campo => $autorizado,
+                    'permite_visualizar' => 1, 'permite_download' => 0, 'permite_editar' => 0, 'permite_tramitar' => 0,
+                    'inicio_em' => $agora, 'concedido_por' => $autor, 'criado_em' => $agora,
+                ]);
+            }
             if ($contador) {
                 $this->banco->table('sequencias_processo')->where($sequencia)->update(['ultimo_numero' => $numero, 'atualizado_em' => $agora]);
             } else {
@@ -88,7 +101,7 @@ class AberturaProcesso
             if (!$this->banco->transStatus() || !$this->banco->transCommit()) {
                 throw new DomainException('Não foi possível concluir a abertura do processo.');
             }
-            return $processo;
+            return $hash;
         } catch (Throwable $erro) {
             $this->banco->transRollback();
             throw $erro;
@@ -102,7 +115,7 @@ class AberturaProcesso
     }
 
     /** Substitui os marcadores da máscara, preservando a ordem definida pela empresa. */
-    private function formatarNumero(array $regra, int $numero, int $ano): string
+    public static function formatarNumero(array $regra, int $numero, int $ano): string
     {
         $mascara = $regra['mascara'];
         $digitos = (int) $regra['digitos_minimos'];

@@ -10,6 +10,7 @@
     const botaoAmpliar = document.getElementById('ampliar-visualizador');
     const corpoDocumentos = document.getElementById('corpo-documentos');
     const botaoDocumentos = document.getElementById('alternar-documentos');
+    const processoReal = document.querySelector('[data-processo-real]');
     let documentoSelecionado = documentos[0];
     const acoes = {
         adicionar: ['Adicionar documento', 'Escolha como deseja preparar um novo documento para o processo.'],
@@ -28,7 +29,7 @@
         solicitar: ['Solicitar assinatura', 'A seleção de signatários e o acompanhamento serão construídos posteriormente.'],
     };
 
-    if (!documentoSelecionado || !campoPesquisa || !dialogoAcao) return;
+    if (!campoPesquisa || !dialogoAcao) return;
 
     /** Seleciona o documento e sincroniza sua identificação com o PDF de teste. */
     function selecionarDocumento(documento) {
@@ -65,8 +66,21 @@
         const chave = botao.dataset.acao;
         const configuracao = acoes[chave];
         if (!configuracao) return;
-        const dados = documentoSelecionado.dataset;
+        const dados = documentoSelecionado?.dataset;
         const usaDocumento = botao.dataset.ambito === 'documento' || chave === 'remover';
+        if (usaDocumento && !dados) return;
+        if (processoReal) {
+            const informacoes = document.getElementById('informacoes-processo-real');
+            informacoes.hidden = chave !== 'informacoes';
+            document.getElementById('titulo-acao').textContent = configuracao[0];
+            document.getElementById('descricao-acao').textContent = chave === 'acesso'
+                ? `Nível atual: ${usaDocumento ? dados.acesso : processoReal.dataset.acesso}.`
+                : chave === 'informacoes' ? '' : 'Esta ação ainda não está disponível.';
+            document.getElementById('referencia-acao').textContent = usaDocumento ? dados.arquivo : document.querySelector('.numero-processo').textContent;
+            botao.closest('details')?.removeAttribute('open');
+            dialogoAcao.showModal();
+            return;
+        }
         document.getElementById('ambito-acao').textContent = usaDocumento ? 'Ação sobre o documento selecionado' : 'Ação sobre o processo';
         document.getElementById('titulo-acao').textContent = configuracao[0];
         document.getElementById('descricao-acao').textContent = configuracao[1];
@@ -180,8 +194,9 @@
     document.querySelectorAll('[data-origem]').forEach(function configurarOrigem(botao) {
         botao.addEventListener('click', function escolherOrigem() { selecionarOrigem(botao); });
     });
-    campoPesquisa.addEventListener('input', pesquisarDocumentos);
-    botaoAmpliar.addEventListener('click', alternarLeituraAmpliada);
+    if (documentos.length) campoPesquisa.addEventListener('input', pesquisarDocumentos);
+    else campoPesquisa.disabled = true;
+    botaoAmpliar?.addEventListener('click', alternarLeituraAmpliada);
     botaoDocumentos.addEventListener('click', function alternarListaDocumentos() {
         corpoDocumentos.hidden = !corpoDocumentos.hidden;
         botaoDocumentos.setAttribute('aria-expanded', String(!corpoDocumentos.hidden));
@@ -189,6 +204,14 @@
         botaoDocumentos.querySelector('i').className = corpoDocumentos.hidden ? 'fa-solid fa-chevron-down' : 'fa-solid fa-chevron-up';
     });
     document.getElementById('acompanhar-processo').addEventListener('click', function alternarAcompanhamento(evento) {
+        if (processoReal) {
+            document.getElementById('titulo-acao').textContent = 'Acompanhar processo';
+            document.getElementById('descricao-acao').textContent = 'Esta ação ainda não está disponível.';
+            document.getElementById('informacoes-processo-real').hidden = true;
+            document.getElementById('referencia-acao').textContent = document.querySelector('.numero-processo').textContent;
+            dialogoAcao.showModal();
+            return;
+        }
         const botao = evento.currentTarget;
         const acompanhado = botao.getAttribute('aria-pressed') !== 'true';
         botao.setAttribute('aria-pressed', String(acompanhado));

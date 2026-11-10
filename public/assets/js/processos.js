@@ -28,16 +28,42 @@
     const contextoDemo = document.querySelector('#seletor-trabalho-cabecalho[data-demonstrativo="true"]');
     const consultaCelular = window.matchMedia('(max-width: 650px)');
     const preferencias = window.preferenciasTrilha;
+    const barraLote = document.getElementById('acoes-lote-processos');
+    const seletoresLote = Array.from(document.querySelectorAll('.selecionar-processo'));
     let itemSelecionado = itensExplorador[0];
     let paginaAtual = 1;
     let quantidadePaginas = 1;
     let temporizadorCopia;
+    let temporizadorAcompanhamento;
+    let filaAlteracoes = Promise.resolve();
+
+    /** Serializa requisições da listagem que renovam o mesmo token CSRF. */
+    function enviarAlteracaoProcessos(endereco, dados) {
+        async function enviar() {
+            const { dataset } = document.getElementById('dialogo-pasta');
+            const parametros = new URLSearchParams({ ...dados, [dataset.csrfNome]: dataset.csrfValor });
+            const resposta = await fetch(endereco, {
+                method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest' }, body: parametros,
+            });
+            const resultado = await resposta.json().catch(() => null);
+            if (resultado?.csrf) {
+                dataset.csrfValor = resultado.csrf;
+                document.getElementsByName(dataset.csrfNome).forEach(campo => { campo.value = resultado.csrf; });
+            }
+            if (!resposta.ok || !resultado) throw new Error(resultado?.erro ?? 'Não foi possível salvar. Atualize a página e tente novamente.');
+            return resultado;
+        }
+        const envio = filaAlteracoes.then(enviar);
+        filaAlteracoes = envio.catch(() => {});
+        return envio;
+    }
 
     /** Separa as consultas de cada setor sem perder as preferências de layout. */
-    function chaveConsulta() {
+    function chaveConsulta(incluirCaixa = true) {
         const unidade = document.getElementById('unidade-trabalho')?.value ?? '';
         const setor = document.getElementById('setor-trabalho')?.value ?? '';
-        return `processos:consulta:${JSON.stringify([unidade, setor])}`;
+        const caixa = estruturaExplorador.dataset.caixaProcessos;
+        return `processos:consulta:${JSON.stringify(incluirCaixa && caixa && caixa !== 'ativos' ? [unidade, setor, caixa] : [unidade, setor])}`;
     }
 
     function chaveItem(item) {
@@ -215,6 +241,7 @@
         });
         document.querySelector('.tabela-consulta-responsiva').hidden = resultado.length === 0;
         document.getElementById('consulta-vazia').hidden = resultado.length !== 0;
+        atualizarSelecaoLote();
         atualizarFiltrosAplicados();
         atualizarPaginacao(resultado.length);
         preferencias.gravar(chaveConsulta(), {
@@ -225,6 +252,19 @@
             pagina: paginaAtual,
             item: chaveItem(itemSelecionado),
         });
+    }
+
+    /** Retira da seleção processos que deixaram a página visível. */
+    function atualizarSelecaoLote() {
+        if (!barraLote) return;
+        seletoresLote.forEach(campo => {
+            if (campo.closest('tr').hidden || campo.closest('td').hidden) campo.checked = false;
+        });
+        const quantidade = seletoresLote.filter(campo => campo.checked).length;
+        barraLote.querySelectorAll('[data-acao-lote]').forEach(botao => {
+            botao.disabled = quantidade === 0 || botao.hasAttribute('data-lote-indisponivel');
+        });
+        document.getElementById('contagem-lote-processos').textContent = quantidade === 1 ? '1 selecionado' : `${quantidade} selecionados`;
     }
 
     /** Reinicia a paginação quando a pesquisa ou algum filtro muda. */
@@ -238,8 +278,10 @@
         itemSelecionado.classList.remove('selecionado');
         itemSelecionado.removeAttribute('aria-current');
         itemSelecionado = item;
-        item.classList.add('selecionado');
-        item.setAttribute('aria-current', 'true');
+        if (!item.hasAttribute('data-voltar-ativos')) {
+            item.classList.add('selecionado');
+            item.setAttribute('aria-current', 'true');
+        }
         const caminho = document.getElementById('caminho-selecao');
         caminho.textContent = item.dataset.rotulo;
         caminho.hidden = ['todos', 'acompanhados'].includes(item.dataset.escopo);
@@ -265,6 +307,34 @@
         atualizarConsulta();
         const destinoFoco = registro.hidden ? itemSelecionado : registro.querySelector('.abrir-acoes');
         destinoFoco.focus();
+    }
+
+    /** Persiste a estrela e atualiza o filtro Acompanhados sem recarregar a página. */
+    async function salvarEstrelaProcesso(botao) {
+        const registro = botao.closest('[data-registro]');
+        const aviso = document.getElementById('aviso-acompanhamento');
+        const tinhaFoco = document.activeElement === botao;
+        botao.disabled = true;
+        try {
+            const estado = registro.dataset.acompanhado === 'true' ? '0' : '1';
+            const { acompanhado } = await enviarAlteracaoProcessos(botao.dataset.acompanhamento, { acompanhar: estado });
+            registro.dataset.acompanhado = String(acompanhado);
+            botao.setAttribute('aria-pressed', String(acompanhado));
+            botao.title = acompanhado ? 'Deixar de acompanhar' : 'Acompanhar';
+            botao.querySelector('i').className = `${acompanhado ? 'fa-solid' : 'fa-regular'} fa-star`;
+            atualizarConsulta();
+            aviso.textContent = acompanhado ? 'Processo marcado como acompanhado.' : 'Acompanhamento removido.';
+        } catch (falha) {
+            aviso.textContent = falha.message;
+        } finally {
+            botao.disabled = false;
+            if (tinhaFoco && document.activeElement === document.body) {
+                (registro.hidden ? itemSelecionado : botao).focus();
+            }
+            aviso.showPopover();
+            clearTimeout(temporizadorAcompanhamento);
+            temporizadorAcompanhamento = setTimeout(() => aviso.hidePopover(), 2000);
+        }
     }
 
     /** Copia o número do processo e informa o resultado da operação. */
@@ -371,6 +441,7 @@
 
         mostrarColunas(colunasVisiveis);
         preferencias.gravar('processos:colunas', Array.from(colunasVisiveis));
+        if (opcoesColunas.some(opcao => opcao.value === 'pasta')) preferencias.gravar('processos:coluna-pasta-configurada', true);
     }
 
     /** Aplica as mesmas colunas à tabela inteira, inclusive às páginas ocultas. */
@@ -379,6 +450,7 @@
             celula.hidden = !colunasVisiveis.has(celula.dataset.coluna);
         });
         tabelaConsulta.style.setProperty('--quantidade-colunas', colunasVisiveis.size);
+        atualizarSelecaoLote();
     }
 
     function chaveExplorador() {
@@ -394,10 +466,10 @@
         const ramos = Array.from(arvoreExplorador.querySelectorAll('details[data-pasta-preferencia]'));
         function restaurarRamos() {
             ramos.forEach(function restaurarRamo(ramo) {
-                const salvo = preferencias.ler(`${chaveConsulta()}:pasta:${ramo.dataset.pastaPreferencia}`);
+                const salvo = preferencias.ler(`${chaveConsulta(false)}:pasta:${ramo.dataset.pastaPreferencia}`);
                 if (ramo.hasAttribute('data-pasta-recem-criada')) {
                     ramo.removeAttribute('data-pasta-recem-criada');
-                    preferencias.gravar(`${chaveConsulta()}:pasta:${ramo.dataset.pastaPreferencia}`, true);
+                    preferencias.gravar(`${chaveConsulta(false)}:pasta:${ramo.dataset.pastaPreferencia}`, true);
                     return;
                 }
                 ramo.open = salvo === true;
@@ -405,7 +477,7 @@
         }
         restaurarRamos();
         ramos.forEach(ramo => ramo.addEventListener('toggle', function guardarRamo() {
-            preferencias.gravar(`${chaveConsulta()}:pasta:${ramo.dataset.pastaPreferencia}`, ramo.open);
+            preferencias.gravar(`${chaveConsulta(false)}:pasta:${ramo.dataset.pastaPreferencia}`, ramo.open);
         }));
         document.addEventListener('contexto-trabalho-alterado', restaurarRamos);
     }
@@ -425,6 +497,18 @@
         const aviso = document.getElementById('aviso-pastas');
         const destinos = document.getElementById('destinos-pasta');
         const real = Boolean(dialogo.dataset.endereco);
+        const mostrarProcessos = document.getElementById('mostrar-processos-pastas');
+        const chaveMostrarProcessos = 'processos:mostrar-processos-pastas';
+        const processosPorPasta = new Map();
+        if (mostrarProcessos) {
+            mostrarProcessos.checked = preferencias.ler(chaveMostrarProcessos) === true;
+            registros.forEach(registro => {
+                for (const pastaId of registro.dataset.pastasProcesso.split(',').filter(Boolean)) {
+                    if (!processosPorPasta.has(pastaId)) processosPorPasta.set(pastaId, []);
+                    processosPorPasta.get(pastaId).push(registro);
+                }
+            });
+        }
         const responsavel = formulario.elements.namedItem('responsavel');
         let gravando = false;
         const arvoreDestinos = document.getElementById('arvore-destinos-pasta');
@@ -466,24 +550,14 @@
             if (gravando) throw new Error('Aguarde a gravação em andamento.');
             gravando = true;
             const id = elemento => elemento?.querySelector('.nome-pasta')?.dataset.valor ?? '';
-            const dados = new URLSearchParams({
+            const dados = {
                 acao: tipo, pasta: id(no), destino: id(destino?.closest('.no-pasta')),
                 origem: id(no?.parentElement.closest('.no-pasta')), nome: nome.value.trim(), token,
                 visibilidade: visibilidade.value, setor_contexto: dialogo.dataset.setor,
                 responsavel: responsavel?.value ?? '',
-                [dialogo.dataset.csrfNome]: dialogo.dataset.csrfValor,
-            });
+            };
             try {
-                const resposta = await fetch(dialogo.dataset.endereco, {
-                    method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest' }, body: dados,
-                });
-                const resultado = await resposta.json().catch(() => null);
-                if (resultado?.csrf) {
-                    dialogo.dataset.csrfValor = resultado.csrf;
-                    document.getElementsByName(dialogo.dataset.csrfNome).forEach(campo => { campo.value = resultado.csrf; });
-                }
-                if (!resposta.ok || !resultado) throw new Error(resultado?.erro ?? 'Não foi possível salvar. Atualize a página e tente novamente.');
-                return resultado;
+                return await enviarAlteracaoProcessos(dialogo.dataset.endereco, dados);
             } finally {
                 gravando = false;
             }
@@ -498,22 +572,51 @@
             const botao = no.querySelector('.nome-pasta');
             const superior = no.parentElement.closest('.no-pasta');
             const rotulo = no.dataset.nome;
-            botao.querySelector('span').textContent = rotulo;
+            botao.querySelector('.rotulo-pasta').textContent = rotulo;
             botao.dataset.rotulo = superior ? `${superior.querySelector('.nome-pasta').dataset.rotulo} / ${rotulo}` : rotulo;
             no.querySelector('.abrir-acoes-pasta').setAttribute('aria-label', `Ações da pasta ${rotulo}`);
             no.querySelector('.expandir-pasta').setAttribute('aria-label', `Subpastas de ${rotulo}`);
             no.querySelector('.filhas-pasta').querySelectorAll(':scope > .no-pasta').forEach(atualizarCaminhos);
         }
 
-        /** Mostra ou recolhe as subpastas de um nó. */
+        /** Mostra as subpastas e, quando solicitado, os processos diretamente vinculados. */
         function definirRamo(no, aberto, guardar = true) {
             const lista = no.querySelector('.filhas-pasta');
             const botao = no.querySelector('.expandir-pasta');
             lista.hidden = !aberto;
-            botao.hidden = !lista.childElementCount;
+            const vinculados = processosPorPasta.get(no.dataset.ramoPreferencia) ?? [];
+            botao.hidden = !lista.childElementCount && !(mostrarProcessos?.checked && vinculados.length);
             botao.setAttribute('aria-expanded', String(aberto));
-            if (guardar && no.dataset.ramoPreferencia) preferencias.gravar(`${chaveConsulta()}:ramo:${no.dataset.ramoPreferencia}`, aberto);
+            if (mostrarProcessos) {
+                const itens = no.querySelector(':scope > .processos-da-pasta');
+                itens.hidden = !aberto || !mostrarProcessos.checked || !vinculados.length;
+                if (!itens.hidden && !itens.childElementCount) preencherProcessosPasta(itens, vinculados);
+            }
+            if (guardar && no.dataset.ramoPreferencia) preferencias.gravar(`${chaveConsulta(false)}:ramo:${no.dataset.ramoPreferencia}`, aberto);
         }
+
+        /** Reutiliza os processos já autorizados e os mesmos links da tabela. */
+        function preencherProcessosPasta(lista, vinculados) {
+            vinculados.forEach(registro => {
+                const linha = document.createElement('li');
+                const endereco = registro.querySelector('a.abrir-consulta');
+                const item = document.createElement(endereco ? 'a' : 'span');
+                item.className = 'processo-na-pasta';
+                if (endereco) item.href = endereco.href;
+                const icone = document.createElement('i');
+                icone.className = 'fa-regular fa-file-lines';
+                icone.setAttribute('aria-hidden', 'true');
+                item.append(icone, registro.dataset.assunto);
+                item.title = registro.dataset.numero;
+                linha.append(item);
+                lista.append(linha);
+            });
+        }
+
+        mostrarProcessos?.addEventListener('change', function alternarProcessosNasPastas() {
+            preferencias.gravar(chaveMostrarProcessos, mostrarProcessos.checked);
+            arvore.querySelectorAll('.no-pasta').forEach(no => definirRamo(no, !no.querySelector('.filhas-pasta').hidden, false));
+        });
 
         /** Valida o mesmo destino para o modal e para o arraste. */
         function permiteMover(no, lista) {
@@ -671,6 +774,11 @@
             filhas.id = `filhas-pasta-${identificador}`;
             const expandir = no.querySelector('.expandir-pasta');
             expandir.setAttribute('aria-controls', filhas.id);
+            if (real) {
+                const processos = no.querySelector(':scope > .processos-da-pasta');
+                processos.id = `processos-da-pasta-${identificador}`;
+                expandir.setAttribute('aria-controls', `${filhas.id} ${processos.id}`);
+            }
             expandir.addEventListener('click', function alternarRamo() { definirRamo(no, filhas.hidden); });
             no.dataset.nome = rotulo;
             Object.assign(botao.dataset, { escopo, grupo, valor });
@@ -823,6 +931,9 @@
             no.dataset.visibilidade = registro.visibilidade;
             no.dataset.ramoPreferencia = String(registro.id);
             no.dataset.ocupada = String(Number(registro.ocupada) === 1);
+            const quantidade = processosPorPasta.get(no.dataset.ramoPreferencia)?.length ?? 0;
+            no.querySelector('.contagem-pasta').textContent = `(${quantidade})`;
+            no.querySelector('.nome-pasta').setAttribute('aria-description', quantidade === 1 ? '1 processo' : `${quantidade} processos`);
             return no;
         }
 
@@ -840,7 +951,7 @@
                 (porPai.get(pai) ?? []).forEach(registro => {
                     const no = inserirPastaReal(lista, registro);
                     montarPastasReais(no.querySelector('.filhas-pasta'), String(registro.id));
-                    definirRamo(no, preferencias.ler(`${chaveConsulta()}:ramo:${registro.id}`) === true, false);
+                    definirRamo(no, preferencias.ler(`${chaveConsulta(false)}:ramo:${registro.id}`) === true, false);
                 });
             }
             montarPastasReais(arvore, '');
@@ -859,7 +970,7 @@
             no.dataset.ramoPreferencia = grupo;
             const lista = no.querySelector('.filhas-pasta');
             Object.keys(subpastas).forEach(function montarSubpasta(rotulo) { inserirPasta(lista, rotulo, 'pasta', grupo, rotulo); });
-            definirRamo(no, preferencias.ler(`${chaveConsulta()}:ramo:${grupo}`) === true, false);
+            definirRamo(no, preferencias.ler(`${chaveConsulta(false)}:ramo:${grupo}`) === true, false);
         });
         /** Retorna o destino associado à linha ou ao cabeçalho da raiz. */
         function obterAlvoArraste(elemento) {
@@ -920,13 +1031,73 @@
         document.addEventListener('contexto-trabalho-alterado', atualizarPastasDoSetor);
         document.addEventListener('contexto-trabalho-alterado', function restaurarGrupos() {
             arvore.querySelectorAll('[data-ramo-preferencia]').forEach(no => {
-                definirRamo(no, preferencias.ler(`${chaveConsulta()}:ramo:${no.dataset.ramoPreferencia}`) === true, false);
+                definirRamo(no, preferencias.ler(`${chaveConsulta(false)}:ramo:${no.dataset.ramoPreferencia}`) === true, false);
             });
         });
         atualizarPastasDoSetor();
     }
 
     if (document.getElementById('pastas-explorador')) configurarPastas();
+    if (barraLote) {
+        const dialogo = document.getElementById('dialogo-lote-processos');
+        const formulario = dialogo.querySelector('form');
+        const destino = formulario.elements.namedItem('destino');
+        const botaoConfirmar = formulario.querySelector('[type="submit"]');
+        const acoes = {
+            mover: ['Mover para', 'Escolha a pasta de destino dos processos selecionados.', 'Mover'],
+            arquivar: ['Arquivar selecionados', 'Confirme o arquivamento dos processos selecionados.', 'Arquivar'],
+            excluir: ['Excluir selecionados', 'Os processos selecionados irão para a Lixeira e poderão ser restaurados.', 'Mover para a Lixeira'],
+            restaurar: ['Restaurar selecionados', 'Os processos selecionados voltarão à caixa anterior.', 'Restaurar'],
+        };
+        seletoresLote.forEach(campo => campo.addEventListener('change', atualizarSelecaoLote));
+        barraLote.querySelectorAll('[data-acao-lote]').forEach(botao => {
+            botao.addEventListener('click', function abrirLote() {
+                const acao = botao.dataset.acaoLote;
+                const [titulo, descricao, confirmar] = acoes[acao];
+                const selecionados = seletoresLote.filter(campo => campo.checked);
+                formulario.reset();
+                formulario.elements.namedItem('acao').value = acao;
+                document.getElementById('titulo-lote-processos').textContent = titulo;
+                document.getElementById('descricao-lote-processos').textContent = `${selecionados.length} · ${descricao}`;
+                document.getElementById('itens-lote-processos').replaceChildren(...selecionados.map(campo => {
+                    const item = document.createElement('input');
+                    item.type = 'hidden';
+                    item.name = 'processos[]';
+                    item.value = campo.value;
+                    return item;
+                }));
+                destino.closest('label').hidden = acao !== 'mover';
+                destino.disabled = acao !== 'mover';
+                destino.required = acao === 'mover';
+                botaoConfirmar.disabled = acao === 'mover' && destino.options.length === 1;
+                botaoConfirmar.classList.toggle('btn-danger', acao === 'excluir');
+                botaoConfirmar.classList.toggle('btn-primary', acao !== 'excluir');
+                botaoConfirmar.textContent = confirmar;
+                dialogo.showModal();
+                (acao === 'mover' ? destino : formulario.querySelector('[data-cancelar-dialogo]')).focus();
+            });
+        });
+    }
+    const dialogoPastaProcesso = document.getElementById('dialogo-pasta-processo');
+    /** Preenche o modal com o processo selecionado e os vínculos que ele pode trocar. */
+    document.querySelectorAll('[data-mover-processo]').forEach(botao => {
+        botao.addEventListener('click', function abrirPastaProcesso() {
+            const formulario = dialogoPastaProcesso.querySelector('form');
+            formulario.reset();
+            formulario.action = botao.dataset.moverProcesso;
+            const origem = formulario.elements.namedItem('origem');
+            const destino = formulario.elements.namedItem('destino');
+            const pastas = new Set(JSON.parse(botao.dataset.pastasVinculadas).map(String));
+            const vinculadas = Array.from(destino.options).filter(opcao => pastas.has(opcao.value));
+            origem.replaceChildren(...(vinculadas.length ? vinculadas.map(opcao => new Option(opcao.text, opcao.value)) : [new Option('Sem pasta', '')]));
+            origem.closest('label').hidden = vinculadas.length < 2;
+            destino.value = origem.value;
+            origem.onchange = () => { destino.value = origem.value; };
+            document.getElementById('processo-da-pasta').textContent = botao.closest('tr').dataset.assunto;
+            dialogoPastaProcesso.showModal();
+            destino.focus();
+        });
+    });
     configurarPreferenciasPastas();
     document.getElementById('abrir-pasta-real')?.addEventListener('click', function abrirCadastroPasta() {
         document.getElementById('dialogo-pasta-real').showModal();
@@ -940,9 +1111,22 @@
     camposFiltros.forEach(function configurarFiltro(campo) { campo.addEventListener('change', atualizarFiltros); });
     seletorOrdenacao.addEventListener('change', atualizarFiltros);
     seletorQuantidade.addEventListener('change', atualizarFiltros);
-    itensExplorador.forEach(function configurarItem(item) { item.addEventListener('click', function navegar() { selecionarItem(item); }); });
+    itensExplorador.forEach(function configurarItem(item) {
+        item.addEventListener('click', function navegar() {
+            if (item.dataset.voltarAtivos) {
+                const chave = chaveConsulta(false);
+                preferencias.gravar(chave, { ...preferencias.ler(chave), item: chaveItem(item), pagina: 1 });
+                location.assign(item.dataset.voltarAtivos);
+                return;
+            }
+            selecionarItem(item);
+        });
+    });
     document.querySelectorAll('[data-limpar-consulta]').forEach(function configurarLimpeza(botao) { botao.addEventListener('click', limparConsulta); });
     document.querySelectorAll('.acompanhar-processo').forEach(function configurarAcompanhamento(botao) { botao.addEventListener('click', function acompanhar() { alternarAcompanhamento(botao); }); });
+    document.querySelectorAll('[data-acompanhamento]').forEach(botao => {
+        botao.addEventListener('click', function alternarEstrela() { salvarEstrelaProcesso(botao); });
+    });
     document.querySelectorAll('.copiar-numero').forEach(function configurarCopia(botao) { botao.addEventListener('click', function copiar() { copiarNumero(botao); }); });
     botaoFiltros.addEventListener('click', function alternarFiltros() {
         painelFiltros.hidden = !painelFiltros.hidden;
@@ -961,6 +1145,7 @@
     const colunasSalvas = preferencias.ler('processos:colunas');
     if (Array.isArray(colunasSalvas)) {
         const disponiveis = new Set(opcoesColunas.map(opcao => opcao.value).filter(coluna => colunasSalvas.includes(coluna)));
+        if (opcoesColunas.some(opcao => opcao.value === 'pasta') && preferencias.ler('processos:coluna-pasta-configurada') !== true) disponiveis.add('pasta');
         if (disponiveis.size) mostrarColunas(disponiveis);
     }
     painelFiltros.hidden = preferencias.ler('processos:painel-filtros') !== true;

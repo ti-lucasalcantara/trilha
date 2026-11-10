@@ -25,7 +25,8 @@ if (!$administradorSimulado) $menusSimulados += ['unidades' => ['Unidades', 'fa-
                 <div class="conteudo-menu">
                     <span class="rotulo-menu">ADMINISTRAÇÃO DA ORGANIZAÇÃO</span>
                     <a class="opcao-menu" href="<?= esc($enderecoConfiguracoes, 'attr') ?>#estrutura"><i class="fa-solid fa-users" aria-hidden="true"></i>Estrutura e equipe</a>
-                    <button type="button" class="opcao-menu" data-aviso="Tipos, campos, status e numeração serão configurados em telas próprias."><i class="fa-regular fa-file-lines" aria-hidden="true"></i>Processos e documentos</button>
+                    <a class="opcao-menu" href="<?= esc($enderecoConfiguracoes, 'attr') ?>#tipos-processo"><i class="fa-regular fa-file-lines" aria-hidden="true"></i>Tipos de processo</a>
+                    <a class="opcao-menu" href="<?= esc($enderecoConfiguracoes, 'attr') ?>#situacoes-processo"><i class="fa-solid fa-list-check" aria-hidden="true"></i>Situações de processo</a>
                     <a class="opcao-menu" href="<?= esc($enderecoConfiguracoes, 'attr') ?>#permissoes"><i class="fa-solid fa-shield-halved" aria-hidden="true"></i>Perfis e permissões</a>
                     <?php if ($modoSimulacao): ?><a class="opcao-menu" href="<?= esc(site_url('admin/clientes/' . $empresaSimulada . '/editar'), 'attr') ?>"><i class="fa-regular fa-pen-to-square" aria-hidden="true"></i>Editar dados da empresa</a><?php endif ?>
                 </div>

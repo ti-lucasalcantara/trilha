@@ -81,7 +81,8 @@ class Painel extends BaseController
         $dados = $administrador ? [] : $consulta->contextoUsuario((string) $usuario['vinculo_id']);
         if ($administrador || $modulo !== 'dashboard') {
             $pagina = $this->request->getGet('pagina');
-            $dados = ['inventario' => $consulta->inventario($modulo === 'dashboard' ? 'processos' : $modulo, is_string($pagina) ? (int) $pagina : 1, $contextoTrabalho['setor']['id'] ?? '')];
+            $dados = ['inventario' => $consulta->inventario($modulo === 'dashboard' ? 'processos' : $modulo,
+                is_string($pagina) ? (int) $pagina : 1, $contextoTrabalho['setor']['id'] ?? '', $simulado ? null : (string) $usuario['vinculo_id'])];
         }
         return $this->response->setHeader('Cache-Control', 'no-store, private')->setBody(view('organizacao/painel_simulacao', [
             'tituloPagina' => $simulado ? 'Caixa de trabalho · Simulação' : 'Caixa de trabalho',

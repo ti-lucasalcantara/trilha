@@ -20,10 +20,17 @@ $routes->post('organizacao/(:segment)/perfis/(:num)/excluir', 'Organizacao\Equip
 $routes->get('organizacao/(:any)/processos', 'Organizacao\Processos::exibir/$1');
 $routes->get('organizacao/(:segment)/processos/novo', 'Organizacao\Processos::novo/$1');
 $routes->post('organizacao/(:segment)/processos/novo', 'Organizacao\Processos::abrir/$1', ['filter' => 'csrf']);
+$routes->post('organizacao/(:segment)/processos/lote', 'Organizacao\Processos::executarLote/$1', ['filter' => 'csrf']);
+$routes->post('organizacao/(:segment)/processos/(:segment)/pasta', 'Organizacao\Processos::moverParaPasta/$1/$2', ['filter' => 'csrf']);
+$routes->post('organizacao/(:segment)/processos/(:segment)/acompanhamento', 'Organizacao\Processos::acompanhar/$1/$2', ['filter' => 'csrf']);
 $routes->post('organizacao/(:segment)/processos/pastas', 'Organizacao\Processos::cadastrarPasta/$1', ['filter' => 'csrf']);
 $routes->post('organizacao/(:segment)/processos/pastas/acao', 'Organizacao\Processos::alterarPasta/$1', ['filter' => 'csrf']);
 $routes->get('organizacao/(:any)/processos/(:segment)', 'Organizacao\Processos::visualizar/$1/$2');
 $routes->get('organizacao/(:any)/configuracoes', 'Organizacao\Configuracoes::exibir/$1');
+$routes->post('organizacao/(:segment)/tipos-processo', 'Organizacao\TiposProcesso::salvar/$1', ['filter' => 'csrf']);
+$routes->post('organizacao/(:segment)/tipos-processo/(:num)/excluir', 'Organizacao\TiposProcesso::excluir/$1/$2', ['filter' => 'csrf']);
+$routes->post('organizacao/(:segment)/situacoes-processo', 'Organizacao\SituacoesProcesso::salvar/$1', ['filter' => 'csrf']);
+$routes->post('organizacao/(:segment)/situacoes-processo/(:num)/excluir', 'Organizacao\SituacoesProcesso::excluir/$1/$2', ['filter' => 'csrf']);
 $routes->get('admin', 'Admin\Painel::exibir');
 $routes->get('admin/clientes', 'Admin\Clientes::exibir');
 $routes->get('admin/planos', 'Admin\Planos::exibir');

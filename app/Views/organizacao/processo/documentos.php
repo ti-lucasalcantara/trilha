@@ -32,9 +32,9 @@ $iconesFormatos = ['pdf' => 'fa-file-pdf', 'xlsx' => 'fa-file-excel', 'xls' => '
                 data-cor="<?= esc($documento['cor'], 'attr') ?>">
                 <div class="linha-documento">
                     <button type="button" class="selecionar-documento" aria-pressed="<?= $indice === 0 ? 'true' : 'false' ?>" aria-controls="area-visualizador" aria-label="Visualizar <?= esc($documento['nomeArquivo'], 'attr') ?>" title="<?= esc($documento['nomeArquivo'], 'attr') ?>">
-                        <span class="icone-formato <?= esc($documento['formato'], 'attr') ?>"><i class="fa-regular <?= esc($iconesFormatos[$documento['formato']], 'attr') ?>" aria-hidden="true"></i></span>
+                        <span class="icone-formato <?= esc($documento['formato'], 'attr') ?>"><i class="fa-regular <?= esc($iconesFormatos[$documento['formato']] ?? 'fa-file', 'attr') ?>" aria-hidden="true"></i></span>
                         <span class="identificacao-arquivo">
-                            <span class="nome-arquivo"><span><?= esc($documento['titulo']) ?></span><span>.<?= esc($documento['formato']) ?></span></span>
+                            <span class="nome-arquivo"><?php if (!empty($consultaReal)): ?><span><?= esc($documento['nomeArquivo']) ?></span><?php else: ?><span><?= esc($documento['titulo']) ?></span><span>.<?= esc($documento['formato']) ?></span><?php endif ?></span>
                             <span class="inclusao-arquivo"><?= esc($documento['data']) ?></span>
                         </span>
                     </button>
@@ -56,7 +56,7 @@ $iconesFormatos = ['pdf' => 'fa-file-pdf', 'xlsx' => 'fa-file-excel', 'xls' => '
             </article>
             <?php endforeach ?>
         </div>
-        <p id="documentos-vazios" class="documentos-vazios" role="status" hidden>Nenhum documento encontrado. Tente outro termo.</p>
+        <p id="documentos-vazios" class="documentos-vazios" role="status" <?= $documentos ? 'hidden' : '' ?>><?= $documentos ? 'Nenhum documento encontrado. Tente outro termo.' : 'Nenhum documento disponível.' ?></p>
     </div>
     <div id="redimensionar-documentos" class="redimensionar-documentos" role="separator" tabindex="0"
          aria-label="Largura da lista de documentos" aria-orientation="vertical" aria-controls="corpo-documentos"

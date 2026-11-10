@@ -10,6 +10,7 @@ use App\Libraries\Organizacao\AcessoOrganizacao;
 use App\Libraries\Organizacao\AberturaProcesso;
 use App\Libraries\Organizacao\ConsultaProcessos;
 use App\Libraries\Organizacao\ContextoSetor;
+use App\Libraries\Organizacao\PoliticaProcesso;
 use CodeIgniter\Exceptions\PageNotFoundException;
 use CodeIgniter\Database\Exceptions\DatabaseException;
 use DomainException;
@@ -20,6 +21,84 @@ use CodeIgniter\HTTP\ResponseInterface;
 /** Exibe a consulta visual de processos com exemplos inteiramente locais. */
 class Processos extends BaseController
 {
+    private const ACOES_POR_CAIXA = [
+        'ativos' => ['mover', 'arquivar', 'excluir'],
+        'arquivados' => ['restaurar', 'excluir'],
+        'lixeira' => ['restaurar'],
+    ];
+
+    /** Valida a caixa, os processos e a autoria antes de executar a operação em lote. */
+    public function executarLote(string $hash): ResponseInterface
+    {
+        [$consulta, $layout, $vinculo] = $this->contextoReal($hash);
+        $caixa = $this->request->getPost('caixa');
+        $caixa = is_string($caixa) && isset(self::ACOES_POR_CAIXA[$caixa]) ? $caixa : 'ativos';
+        $endereco = site_url('organizacao/' . $hash . '/processos');
+        $voltar = redirect()->to($endereco . ($caixa === 'ativos' ? '' : '?caixa=' . $caixa), 303)->withCookies();
+        $acao = $this->request->getPost('acao');
+        $hashes = $this->request->getPost('processos');
+        $destino = $this->request->getPost('destino') ?? '';
+        $setor = $layout['contextoTrabalho']['setor']['id'] ?? null;
+        if ($setor === null || $this->request->getPost('setor_contexto') !== $setor || !in_array($acao, self::ACOES_POR_CAIXA[$caixa], true)
+            || !is_array($hashes) || !$hashes || count($hashes) > 20
+            || array_filter($hashes, static fn ($item) => !is_string($item) || !preg_match('/^[a-f0-9]{48}$/D', $item))
+            || ($acao === 'mover' && (!is_string($destino) || !preg_match('/^[1-9][0-9]{0,19}$/D', $destino)))) {
+            return $voltar->with('erroPastaProcesso', 'Confira a seleção de processos, a ação e o setor ativo.');
+        }
+        $autor = $vinculo;
+        if ($autor === null) {
+            $responsavel = $this->request->getPost('responsavel');
+            $usuarios = array_column((new ConsultaEmpresa(db_connect(), $layout['empresaSimulada']))->usuarios(), null, 'vinculo_id');
+            if (!is_string($responsavel) || !isset($usuarios[$responsavel])) {
+                return $voltar->with('erroPastaProcesso', 'Selecione um usuário interno ativo.');
+            }
+            $autor = $responsavel;
+        }
+        try {
+            $consulta->executarLote(array_values(array_unique($hashes)), $acao, $caixa, $acao === 'mover' ? $destino : '', $vinculo, $autor);
+            $mensagens = [
+                'mover' => 'Seleção movida para a pasta de destino.', 'arquivar' => 'Seleção enviada para Arquivados.',
+                'excluir' => 'Seleção enviada para a Lixeira.', 'restaurar' => 'Seleção restaurada.',
+            ];
+            return $voltar->with('sucessoPastaProcesso', $mensagens[$acao]);
+        } catch (DomainException $erro) {
+            return $voltar->with('erroPastaProcesso', $erro->getMessage());
+        } catch (DatabaseException $erro) {
+            log_message('error', 'Falha na operação em lote: {mensagem}', ['mensagem' => $erro->getMessage()]);
+            return $voltar->with('erroPastaProcesso', 'Não foi possível concluir a ação em lote.');
+        }
+    }
+
+    /** Grava o estado desejado de acompanhamento para o vínculo da sessão. */
+    public function acompanhar(string $hash, string $processo): ResponseInterface
+    {
+        if (!preg_match('/^[a-f0-9]{48}$/D', $processo)) throw PageNotFoundException::forPageNotFound();
+        [$consulta, , $vinculo] = $this->contextoReal($hash, false);
+        $estado = $this->request->getPost('acompanhar');
+        if (!in_array($estado, ['0', '1'], true)) {
+            return $this->response->setStatusCode(422)->setJSON(['erro' => 'Estado de acompanhamento inválido.', 'csrf' => csrf_hash()]);
+        }
+        $acompanhado = $estado === '1';
+        try {
+            if ($vinculo !== null) {
+                $consulta->salvarAcompanhamento($processo, $vinculo, $acompanhado);
+            } else {
+                // A simulação administrativa não representa um vínculo pessoal.
+                if (!$consulta->listar(null, $processo)) throw new DomainException('Processo indisponível neste setor.');
+                $chave = 'acompanhamentos_simulados_' . $hash;
+                $marcados = session()->get($chave) ?? [];
+                if ($acompanhado) $marcados[$processo] = true;
+                else unset($marcados[$processo]);
+                session()->set($chave, $marcados);
+            }
+        } catch (DomainException $erro) {
+            return $this->response->setStatusCode(422)->setJSON(['erro' => $erro->getMessage(), 'csrf' => csrf_hash()]);
+        } catch (DatabaseException) {
+            return $this->response->setStatusCode(409)->setJSON(['erro' => 'Não foi possível atualizar o acompanhamento.', 'csrf' => csrf_hash()]);
+        }
+        return $this->response->setJSON(['acompanhado' => $acompanhado, 'csrf' => csrf_hash()]);
+    }
+
     /** Exibe a página de abertura com os cadastros e o setor da organização real. */
     public function novo(string $hash): ResponseInterface
     {
@@ -28,9 +107,12 @@ class Processos extends BaseController
         $banco = db_connect();
         $empresa = $layout['empresaSimulada'];
         $opcoes = (new AberturaProcesso($banco, $empresa))->opcoes();
+        $usuarios = (new ConsultaEmpresa($banco, $empresa))->usuarios();
         return $this->response->setHeader('Cache-Control', 'no-store, private')->setBody(view('organizacao/processos/novo', $layout + $opcoes + [
             'tituloPagina' => 'Novo processo',
-            'responsaveis' => $vinculo === null ? (new ConsultaEmpresa($banco, $empresa))->usuarios() : [],
+            'responsaveis' => $vinculo === null ? $usuarios : [],
+            'pessoasAcesso' => $usuarios,
+            'niveisAcesso' => PoliticaProcesso::NIVEIS,
         ]));
     }
 
@@ -38,11 +120,12 @@ class Processos extends BaseController
     public function abrir(string $hash): ResponseInterface
     {
         if ($hash === '1') throw PageNotFoundException::forPageNotFound();
-        [, $layout, $vinculo] = $this->contextoReal($hash);
+        [$consulta, $layout, $vinculo] = $this->contextoReal($hash);
+        $leitor = $vinculo;
         $endereco = site_url('organizacao/' . $hash . '/processos');
         $voltar = redirect()->to($endereco . '/novo', 303)->withCookies();
         $dados = [];
-        foreach (['tipo', 'situacao', 'assunto', 'descricao', 'setor_contexto', 'responsavel'] as $campo) {
+        foreach (['tipo', 'situacao', 'assunto', 'descricao', 'setor_contexto', 'responsavel', 'acesso'] as $campo) {
             $valor = $this->request->getPost($campo);
             $dados[$campo] = is_string($valor) ? trim($valor) : '';
         }
@@ -59,8 +142,24 @@ class Processos extends BaseController
             }
             $banco = db_connect();
             $empresa = $layout['empresaSimulada'];
+            $usuarios = array_column((new ConsultaEmpresa($banco, $empresa))->usuarios(), null, 'vinculo_id');
+            if (!isset(PoliticaProcesso::NIVEIS[$dados['acesso']])) throw new DomainException('Selecione o nível de acesso.');
+            $dados['autorizados'] = [];
+            if ($dados['acesso'] !== 'interno') {
+                $restrito = $dados['acesso'] === 'restrito';
+                $selecionados = $this->request->getPost($restrito ? 'setores_autorizados' : 'pessoas_autorizadas');
+                $permitidos = $restrito ? $layout['contextoTrabalho']['setores'] : $usuarios;
+                if (!is_array($selecionados) || !$selecionados) {
+                    throw new DomainException($restrito ? 'Selecione pelo menos um setor autorizado.' : 'Selecione pelo menos uma pessoa autorizada.');
+                }
+                foreach ($selecionados as $selecionado) {
+                    if (!is_string($selecionado) || !isset($permitidos[$selecionado])) {
+                        throw new DomainException('Confira as autorizações selecionadas para esta organização.');
+                    }
+                    $dados['autorizados'][$selecionado] = $selecionado;
+                }
+            }
             if ($vinculo === null) {
-                $usuarios = array_column((new ConsultaEmpresa($banco, $empresa))->usuarios(), null, 'vinculo_id');
                 if (!isset($usuarios[$dados['responsavel']])) {
                     throw new DomainException('Selecione um usuário interno ativo para registrar a abertura.');
                 }
@@ -68,12 +167,47 @@ class Processos extends BaseController
             }
             $ano = (int) (new DateTimeImmutable('now', new DateTimeZone($layout['fusoOrganizacao'])))->format('Y');
             $processo = (new AberturaProcesso($banco, $empresa))->abrir($dados, $setor, $vinculo, $ano);
-            return redirect()->to($endereco . '/' . $processo, 303)->withCookies()->with('processoAberto', 'Processo aberto com sucesso.');
+            $podeConsultar = $leitor === null || $consulta->listar($leitor, $processo, true);
+            return redirect()->to($podeConsultar ? $endereco . '/' . $processo : $endereco, 303)->withCookies()
+                ->with('processoAberto', $podeConsultar ? 'Processo aberto com sucesso.' : 'Processo aberto. A consulta está disponível às pessoas autorizadas.');
         } catch (DomainException $erro) {
             return $voltar->withInput()->with('erroAbertura', $erro->getMessage());
         } catch (DatabaseException $erro) {
             log_message('error', 'Falha ao abrir processo: {mensagem}', ['mensagem' => $erro->getMessage()]);
             return $voltar->withInput()->with('erroAbertura', 'Não foi possível gravar o processo. Tente novamente.');
+        }
+    }
+
+    /** Troca o vínculo de pasta indicado na listagem, no setor ativo. */
+    public function moverParaPasta(string $hash, string $processo): ResponseInterface
+    {
+        if (!preg_match('/^[a-f0-9]{48}$/D', $processo)) throw PageNotFoundException::forPageNotFound();
+        [$consulta, $layout, $vinculo] = $this->contextoReal($hash);
+        $voltar = redirect()->to(site_url('organizacao/' . $hash . '/processos'), 303)->withCookies();
+        $origem = $this->request->getPost('origem');
+        $destino = $this->request->getPost('destino');
+        $setor = $layout['contextoTrabalho']['setor']['id'] ?? null;
+        if ($setor === null || $this->request->getPost('setor_contexto') !== $setor
+            || !is_string($origem) || !is_string($destino)
+            || !preg_match('/^(?:[1-9][0-9]{0,19})?$/D', $origem) || !preg_match('/^(?:[1-9][0-9]{0,19})?$/D', $destino)) {
+            return $voltar->with('erroPastaProcesso', 'Confira a pasta e o setor selecionado.');
+        }
+        $autor = $vinculo;
+        if ($autor === null) {
+            $responsavel = $this->request->getPost('responsavel');
+            $usuarios = array_column((new ConsultaEmpresa(db_connect(), $layout['empresaSimulada']))->usuarios(), null, 'vinculo_id');
+            if (!is_string($responsavel) || !isset($usuarios[$responsavel])) {
+                return $voltar->with('erroPastaProcesso', 'Selecione um usuário interno ativo.');
+            }
+            $autor = $responsavel;
+        }
+        try {
+            $consulta->moverProcesso($processo, $origem, $destino, $vinculo, $autor);
+            return $voltar->with('sucessoPastaProcesso', 'Pasta do processo atualizada.');
+        } catch (DomainException $erro) {
+            return $voltar->with('erroPastaProcesso', $erro->getMessage());
+        } catch (DatabaseException) {
+            return $voltar->with('erroPastaProcesso', 'Não foi possível alterar a pasta do processo.');
         }
     }
 
@@ -109,12 +243,15 @@ class Processos extends BaseController
     public function visualizar(string $identificadorOrganizacao, string $identificadorProcesso): ResponseInterface
     {
         if ($identificadorOrganizacao !== '1') {
-            [$consulta, $layout, $vinculo] = $this->contextoReal($identificadorOrganizacao);
-            if (!preg_match('/^[1-9][0-9]{0,19}$/D', $identificadorProcesso)) throw PageNotFoundException::forPageNotFound();
-            $processo = $consulta->listar($vinculo, $identificadorProcesso)[0] ?? null;
+            [$consulta, $layout, $vinculo] = $this->contextoReal($identificadorOrganizacao, false);
+            if (!preg_match('/^[a-f0-9]{48}$/D', $identificadorProcesso)) throw PageNotFoundException::forPageNotFound();
+            $processo = $consulta->listar($vinculo, $identificadorProcesso, true)[0] ?? null;
             if (!$processo) throw PageNotFoundException::forPageNotFound();
-            return $this->response->setHeader('Cache-Control', 'no-store, private')->setBody(view('organizacao/processo_consulta', $layout + [
-                'tituloPagina' => $processo['numero'], 'processo' => $processo, 'documentos' => $consulta->documentos($identificadorProcesso),
+            $documentos = $consulta->documentos((string) $processo['id'], $vinculo);
+            return $this->response->setHeader('Cache-Control', 'no-store, private')->setBody(view('organizacao/processo', $layout + [
+                'tituloPagina' => $processo['numero'], 'processo' => $processo,
+                'documentos' => $this->prepararDocumentosReais($documentos, $processo['acesso']),
+                'pdfDisponivel' => false,
             ]));
         }
         $processoSelecionado = null;
@@ -144,8 +281,16 @@ class Processos extends BaseController
     /** Usa os componentes aprovados do explorador com registros do banco. */
     private function exibirReais(string $hash): ResponseInterface
     {
-        [$consulta, $layout, $vinculo] = $this->contextoReal($hash);
-        $processos = $consulta->listar($vinculo);
+        [$consulta, $layout, $vinculo] = $this->contextoReal($hash, false);
+        $caixa = $this->request->getGet('caixa');
+        if (!in_array($caixa, ['arquivados', 'lixeira'], true)) $caixa = 'ativos';
+        if ($caixa === 'lixeira' && !$layout['administradorSimulado']) throw PageNotFoundException::forPageNotFound();
+        $processos = $consulta->listar($vinculo, null, false, $caixa);
+        if ($vinculo === null) {
+            $marcados = session()->get('acompanhamentos_simulados_' . $hash) ?? [];
+            foreach ($processos as &$processo) $processo['acompanhado'] = isset($marcados[$processo['hash_publico']]);
+            unset($processo);
+        }
         $opcoes = [];
         foreach (['tipo', 'situacao', 'unidade', 'setor', 'responsavel', 'acesso'] as $campo) {
             $opcoes[$campo] = array_values(array_unique(array_filter(array_column($processos, $campo), static fn ($valor) => $valor !== '')));
@@ -157,14 +302,16 @@ class Processos extends BaseController
         $escopo = [$hash, $layout['contextoTrabalho']['setor']['id'] ?? null, $vinculo];
         $pastaCriada = session()->getFlashdata('sucessoPastaReal');
 
+        $explorador = $consulta->explorador($vinculo);
         return $this->response->setHeader('Cache-Control', 'no-store, private')->setBody(view('organizacao/processos', $layout + [
             'tituloPagina' => 'Processos', 'processos' => $processos, 'opcoes' => $opcoes,
-            'mostrarAcompanhados' => $vinculo !== null,
+            'caixaProcessos' => $caixa, 'acoesLote' => self::ACOES_POR_CAIXA[$caixa],
             'responsaveisPasta' => $vinculo === null ? (new ConsultaEmpresa(db_connect(), $layout['empresaSimulada']))->usuarios() : [],
             'pastaRealCriada' => $pastaCriada,
+            'caminhosPastas' => $consulta->caminhosPastas($explorador['pastasReais']),
             'historicoPasta' => $pastaCriada && ($historico['escopo'] ?? null) === $escopo
                 ? $this->avisoHistoricoPasta($historico) : null,
-        ] + $consulta->explorador($vinculo)));
+        ] + $explorador));
     }
 
     /** Cadastra uma pasta no contexto administrativo já autorizado. */
@@ -279,27 +426,47 @@ class Processos extends BaseController
     }
 
     /** Mantém a consulta real no mesmo escopo administrativo do dashboard. */
-    private function contextoReal(string $hash): array
+    private function contextoReal(string $hash, bool $exigirAdministrador = true): array
     {
         helper(['url', 'form']);
         $banco = db_connect();
         $simulado = (session()->get(SimulacaoEmpresa::SESSAO)['hash'] ?? null) === $hash;
         $contexto = $simulado
             ? SimulacaoEmpresa::contexto($this->request, $hash, true)
-            : (new AcessoOrganizacao($banco))->contexto($hash, true);
+            : (new AcessoOrganizacao($banco))->contexto($hash, $exigirAdministrador);
         $empresaId = (string) $contexto['empresa'];
         $empresa = (new Cadastros($banco))->obter('clientes', $empresaId);
         if (!hash_equals($empresa['hash_publico'], $hash)) throw PageNotFoundException::forPageNotFound();
 
-        $contextoTrabalho = (new ContextoSetor($banco, $empresaId, null))->obter();
+        $administrador = $simulado || (bool) $contexto['fundador'];
+        $contextoTrabalho = (new ContextoSetor($banco, $empresaId, $administrador ? null : (string) $contexto['vinculo']))->obter();
         return [new ConsultaProcessos($banco, $empresaId, $contextoTrabalho['setor']['id'] ?? ''), [
             'paginaAtiva' => 'processos', 'identificadorOrganizacao' => $hash,
             'nomeOrganizacao' => $empresa['nome'], 'nomeUsuario' => $simulado ? 'Administrador da organização' : $contexto['usuario'],
             'modoSimulacao' => $simulado, 'contextoEmpresaReal' => !$simulado,
-            'administradorSimulado' => true, 'empresaSimulada' => $empresaId, 'consultaReal' => true,
+            'administradorSimulado' => $administrador, 'empresaSimulada' => $empresaId, 'consultaReal' => true,
+            'consultasPermitidas' => $administrador ? [] : (new AcessoOrganizacao($banco))->consultas($contexto),
             'contextoTrabalho' => $contextoTrabalho,
             'fusoOrganizacao' => $empresa['fuso_horario'],
         ], $simulado ? null : (string) $contexto['vinculo']];
+    }
+
+    /** Adapta os metadados reais ao painel de documentos, sem expor chaves de armazenamento. */
+    private function prepararDocumentosReais(array $documentos, string $acesso): array
+    {
+        return array_map(static function (array $documento) use ($acesso): array {
+            $nome = $documento['nome_arquivo'] ?: $documento['titulo'];
+            return [
+                'id' => (string) $documento['id'], 'titulo' => $documento['titulo'], 'nomeArquivo' => $nome,
+                'numero' => $documento['numero_completo'] ?? 'Sem número',
+                'formato' => strtolower(pathinfo($documento['nome_arquivo'] ?? '', PATHINFO_EXTENSION)),
+                'tipo' => $documento['tipo'], 'autor' => $documento['autor'] ?? '—', 'setor' => $documento['setor'],
+                'data' => date('d/m/Y · H:i', strtotime($documento['criado_em'])),
+                'situacao' => $documento['situacao'], 'cor' => 'neutro',
+                'acesso' => PoliticaProcesso::NIVEIS[$documento['nivel']] ?? $documento['nivel'] ?? $acesso,
+                'versao' => (string) ($documento['numero_versao'] ?? '—'), 'descricao' => '',
+            ];
+        }, $documentos);
     }
 
     /** Identifica os formatos originais ilustrativos, mantendo o mesmo PDF na prévia. */

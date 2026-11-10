@@ -3,11 +3,21 @@
     <div class="titulo-explorador"><span>Explorador</span><button id="alternar-explorador" type="button" aria-controls="arvore-explorador" aria-expanded="true" aria-label="Recolher explorador"><i class="fa-solid fa-angles-left" aria-hidden="true"></i></button></div>
     <nav id="arvore-explorador" class="arvore-explorador" aria-label="Navegação por unidades e pastas">
         <div class="atalhos-explorador">
-            <button type="button" class="item-explorador selecionado" data-escopo="todos" data-rotulo="Todos os processos" aria-current="true"><i class="fa-solid fa-layer-group" aria-hidden="true"></i><span>Todos os processos</span></button>
-            <?php if ($mostrarAcompanhados ?? true): ?>
-            <button type="button" class="item-explorador" data-escopo="acompanhados" data-rotulo="Acompanhados"><i class="fa-regular fa-star" aria-hidden="true"></i><span>Acompanhados</span></button>
-            <?php endif ?>
+            <?php
+            $caixaAtual = $caixaProcessos ?? 'ativos';
+            $enderecoCaixas = site_url('organizacao/' . $identificadorOrganizacao . '/processos');
+            $voltarAtivos = $caixaAtual === 'ativos' ? '' : ' data-voltar-ativos="' . esc($enderecoCaixas, 'attr') . '"';
+            ?>
+            <button type="button" class="item-explorador<?= $caixaAtual === 'ativos' ? ' selecionado' : '' ?>" data-escopo="todos" data-rotulo="Todos os processos"<?= $voltarAtivos ?><?= $caixaAtual === 'ativos' ? ' aria-current="true"' : '' ?>><i class="fa-solid fa-layer-group" aria-hidden="true"></i><span>Todos os processos</span></button>
+            <button type="button" class="item-explorador" data-escopo="acompanhados" data-rotulo="Acompanhados"<?= $voltarAtivos ?>><i class="fa-regular fa-star" aria-hidden="true"></i><span>Acompanhados</span></button>
         </div>
+        <?php if (empty($consultaReal) || $administradorSimulado): ?>
+        <?php if (!empty($consultaReal)): ?>
+            <label class="preferencia-processos-pastas">
+                <input class="form-check-input" type="checkbox" id="mostrar-processos-pastas">
+                <span>Mostrar processos nas pastas</span>
+            </label>
+        <?php endif ?>
         <div class="secao-pastas">
             <details id="ramo-pastas" class="ramo-explorador" data-pasta-preferencia="raiz" <?= !empty($pastaRealCriada) ? 'open data-pasta-recem-criada' : '' ?>>
                 <summary><i class="fa-solid fa-chevron-right seta-ramo" aria-hidden="true"></i><i class="fa-regular fa-folder" aria-hidden="true"></i><span>Pastas</span></summary>
@@ -24,7 +34,16 @@
             <button type="button" id="abrir-pasta-real" class="controle-pasta adicionar-pasta" aria-haspopup="dialog" aria-controls="dialogo-pasta-real" aria-label="Nova pasta" title="Nova pasta"><i class="fa-solid fa-plus" aria-hidden="true"></i></button>
             <?php endif ?>
         </div>
+        <?php endif ?>
         <p id="aviso-pastas" class="aviso-pastas" role="status"></p>
+        <?php if (!empty($consultaReal)): ?>
+            <div class="grupo-explorador caixas-explorador">
+                <a class="item-explorador<?= $caixaAtual === 'arquivados' ? ' selecionado' : '' ?>" <?= $caixaAtual === 'arquivados' ? 'aria-current="page"' : '' ?> href="<?= esc($enderecoCaixas . '?caixa=arquivados', 'attr') ?>"><i class="fa-solid fa-box-archive" aria-hidden="true"></i><span>Arquivados</span></a>
+                <?php if ($administradorSimulado): ?>
+                    <a class="item-explorador<?= $caixaAtual === 'lixeira' ? ' selecionado' : '' ?>" <?= $caixaAtual === 'lixeira' ? 'aria-current="page"' : '' ?> href="<?= esc($enderecoCaixas . '?caixa=lixeira', 'attr') ?>"><i class="fa-regular fa-trash-can" aria-hidden="true"></i><span>Lixeira</span></a>
+                <?php endif ?>
+            </div>
+        <?php endif ?>
     </nav>
     <div id="redimensionar-explorador" class="redimensionar-explorador" role="separator" tabindex="0"
          aria-label="Largura do Explorador" aria-orientation="vertical" aria-controls="arvore-explorador"
@@ -43,7 +62,7 @@
     <li class="no-pasta">
         <div class="linha-pasta">
             <button type="button" class="controle-pasta expandir-pasta" aria-expanded="false" hidden><i class="fa-solid fa-chevron-right" aria-hidden="true"></i></button>
-            <button type="button" class="item-explorador nome-pasta" draggable="true"><i class="fa-regular fa-folder" aria-hidden="true"></i><span></span></button>
+            <button type="button" class="item-explorador nome-pasta" draggable="true"><i class="fa-regular fa-folder" aria-hidden="true"></i><span><span class="rotulo-pasta"></span><?php if (!empty($consultaReal)): ?> <small class="contagem-pasta" aria-hidden="true"></small><?php endif ?></span></button>
             <button type="button" class="controle-pasta abrir-acoes-pasta"><i class="fa-solid fa-ellipsis" aria-hidden="true"></i></button>
             <div class="acoes-consulta acoes-pasta" popover>
                 <button type="button" data-acao-pasta="subpasta">Criar subpasta</button>
@@ -54,6 +73,7 @@
             </div>
         </div>
         <ul class="filhas-pasta" hidden></ul>
+        <?php if (!empty($consultaReal)): ?><ul class="processos-da-pasta" hidden></ul><?php endif ?>
     </li>
 </template>
 

@@ -492,7 +492,7 @@
         envio.submit();
     }
 
-    /** Navega entre as três áreas e aceita links diretos pelo menu. */
+    /** Navega entre as áreas e aceita links diretos pelo menu. */
     function mostrarPagina() {
         const links = Array.from(document.querySelectorAll('[data-pagina-configuracoes]'));
         const atual = links.find(link => link.hash === location.hash) ?? links[0];
