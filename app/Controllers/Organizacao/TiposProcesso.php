@@ -2,8 +2,6 @@
 
 namespace App\Controllers\Organizacao;
 
-use App\Controllers\BaseController;
-use App\Libraries\Admin\SimulacaoEmpresa;
 use App\Libraries\Organizacao\AcessoOrganizacao;
 use App\Libraries\Organizacao\GestaoTiposProcesso;
 use CodeIgniter\Database\Exceptions\DatabaseException;
@@ -11,8 +9,19 @@ use CodeIgniter\HTTP\ResponseInterface;
 use DomainException;
 
 /** Recebe gravações do catálogo pela administração da organização. */
-class TiposProcesso extends BaseController
+class TiposProcesso extends Configuracoes
 {
+    public function exibir(string $hash): ResponseInterface
+    {
+        $banco = db_connect();
+        $contexto = (new AcessoOrganizacao($banco))->contexto($hash, true);
+        return $this->renderizarConfiguracao($hash, 'tipos-processo', 'Tipos de processo', $contexto, [
+            'tiposProcesso' => (new GestaoTiposProcesso($banco, (string) $contexto['empresa']))->listar(),
+            'edicaoTipoProcesso' => $this->request->getGet('tipo'),
+            'exclusaoTipoProcesso' => $this->request->getGet('excluir_tipo'),
+        ]);
+    }
+
     /** Valida os campos e grava o tipo e sua máscara. */
     public function salvar(string $hash): ResponseInterface
     {
@@ -62,11 +71,8 @@ class TiposProcesso extends BaseController
     private function autorizar(string $hash): array
     {
         $banco = db_connect();
-        $simulando = (session()->get(SimulacaoEmpresa::SESSAO)['hash'] ?? null) === $hash;
-        $contexto = $simulando
-            ? SimulacaoEmpresa::contexto($this->request, $hash, true)
-            : (new AcessoOrganizacao($banco))->contexto($hash, true);
-        return [new GestaoTiposProcesso($banco, (string) $contexto['empresa']), $simulando ? null : (string) $contexto['vinculo']];
+        $contexto = (new AcessoOrganizacao($banco))->contexto($hash, true);
+        return [new GestaoTiposProcesso($banco, (string) $contexto['empresa']), $contexto['vinculo'] !== null ? (string) $contexto['vinculo'] : null];
     }
 
     /** Retorna à aba do catálogo após o envio do formulário. */
@@ -74,6 +80,6 @@ class TiposProcesso extends BaseController
     {
         helper('url');
         $consulta = $edicao === null ? '' : '?' . http_build_query(['tipo' => $edicao]);
-        return redirect()->to(site_url('organizacao/' . $hash . '/configuracoes') . $consulta . '#tipos-processo', 303)->withCookies();
+        return redirect()->to(site_url('organizacao/' . $hash . '/configuracoes/tipos-processo') . $consulta, 303)->withCookies();
     }
 }

@@ -16,7 +16,7 @@
 
 /* Organiza a estrutura geral da tela de entrada. */
 .pagina-entrada { margin: 0; background: #fff; color: var(--trilha-texto); font-family: Inter, sans-serif; -webkit-font-smoothing: antialiased; }
-.estrutura-entrada { min-height: 100vh; min-height: 100svh; display: grid; grid-template-columns: 1fr 1fr; }
+.estrutura-entrada { width: 100%; min-height: 100vh; min-height: 100svh; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
 /* Apresenta a marca e sua ilustração decorativa. */
 .painel-marca { background: #291550; color: #fff; padding: 42px clamp(28px, 4.5vw, 84px) 30px; display: flex; flex-direction: column; position: relative; isolation: isolate; overflow: hidden; }
 .painel-marca::before { content: ''; position: absolute; z-index: -1; width: 640px; height: 640px; right: -280px; bottom: -340px; border: 1px solid #ffffff0d; border-radius: 50%; box-shadow: 0 0 0 70px #ffffff03, 0 0 0 140px #ffffff03, 0 0 0 210px #ffffff02; }
@@ -62,9 +62,77 @@
 .observacao-convite { font-size: 10px; color: #70667d; margin: 22px 0 0; line-height: 1.9; }.observacao-convite > span { color: #91879c; }
 .rodape-acesso { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; width: 100%; color: #a096ac; font-size: 9px; }.rodape-acesso > span:last-child { display: flex; align-items: center; gap: 7px; }.ponto-rodape { width: 5px; height: 5px; border-radius: 50%; background: var(--trilha-menta); }
 .aviso-entrada { font-size: 12px; line-height: 1.6; margin-bottom: 20px; }.aviso-entrada[hidden] { display: none; }
+.conta-bloqueada {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 22px;
+    padding: 11px 13px;
+    border: 1px solid var(--trilha-borda);
+    border-radius: 10px;
+    background: #faf8ff;
+    font-size: 13px;
+}
+.conta-bloqueada strong { overflow-wrap: anywhere; }
+.conta-bloqueada > i { margin-left: auto; color: var(--trilha-texto-secundario); }
+.avatar-conta-bloqueada {
+    display: grid;
+    place-items: center;
+    flex: 0 0 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: #eee5ff;
+    color: var(--trilha-roxo-destaque);
+    font-weight: 700;
+}
+.trocar-conta-bloqueada { margin-top: 10px; }
+.trocar-conta-bloqueada .btn { min-height: 44px; border-radius: 8px; font-size: 12px; }
 button:focus-visible { outline: 3px solid #b894f8; outline-offset: 3px; }
 @media (min-width: 1600px) { .conteudo-marca { max-width: 550px; align-self: center; }.painel-marca { padding-left: 80px; padding-right: 80px; } }
 @media (max-width: 1000px) { .painel-marca { padding-left: 30px; padding-right: 30px; }.painel-marca h1 { font-size: 35px; }.cabecalho-marca { font-size: 8px; letter-spacing: .8px; }.descricao-marca { font-size: 12px; }.painel-acesso { padding-left: 28px; padding-right: 28px; }.analise-fluxo { margin-left: 20px; } }
 /* Simplifica a tela e aumenta os campos em dispositivos móveis. */
 @media (max-width: 760px) { .estrutura-entrada { grid-template-columns: 1fr; }.painel-marca { display: none; }.painel-acesso { min-height: 100vh; min-height: 100svh; padding: 25px 24px 20px; }.conteudo-acesso { max-width: 390px; padding-top: 24px; padding-bottom: 42px; }.logo-entrada { margin-bottom: 28px; }.campo-entrada .form-control { font-size: 16px; }.titulo-entrada h2 { font-size: 27px; }.rodape-acesso { max-width: 390px; margin: 0 auto; }.botao-recuperacao { min-height: 44px; }.linha-recuperacao { margin-bottom: 14px; } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; } }
+
+.pagina-acesso-direto {
+    display: grid;
+    place-items: center;
+    width: 100%;
+    min-height: 100svh;
+    padding: clamp(16px, 4vw, 40px);
+    background: radial-gradient(ellipse at top, #e9dfff, #f8f6fb 64%);
+}
+.cartao-acesso-direto {
+    box-sizing: border-box;
+    width: min(100%, 440px);
+    min-width: 0;
+    padding: clamp(20px, 6vw, 36px);
+    border: 1px solid var(--trilha-borda);
+    border-radius: 18px;
+    background: #fff;
+    box-shadow: 0 18px 56px #29155014;
+}
+.cartao-acesso-direto .painel-acesso { min-height: 0; padding: 0; }
+.cartao-acesso-direto .conteudo-acesso { max-width: none; padding: 0; }
+.cartao-acesso-direto .logo-entrada { width: 138px; margin: 0 0 20px; }
+.cartao-acesso-direto h1 { font: 600 clamp(23px, 5vw, 29px)/1.25 Sora, sans-serif; margin: 0 0 9px; }
+.cartao-acesso-direto .titulo-entrada > p:last-child { margin-bottom: 22px; }
+.avatar-conta-bloqueada { overflow: hidden; }
+.avatar-conta-bloqueada img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.cartao-seletores { width: min(100%, 540px); }
+.organizacao-escolha-setor { color: var(--trilha-roxo-destaque); font-weight: 600; overflow-wrap: anywhere; }
+.grupo-escolha-setor { display: grid; gap: 7px; min-width: 0; margin: 0 0 18px; }
+.grupo-escolha-setor legend { font-size: 13px; font-weight: 600; overflow-wrap: anywhere; }
+.opcao-escolha-setor {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 44px;
+    padding: 8px 12px;
+    border: 1px solid var(--trilha-borda);
+    border-radius: 8px;
+    overflow-wrap: anywhere;
+    cursor: pointer;
+}
+.opcao-escolha-setor .form-check-input { flex: none; margin: 0; }
+.opcao-escolha-setor:has(:checked) { border-color: var(--trilha-roxo); background: #f5efff; }

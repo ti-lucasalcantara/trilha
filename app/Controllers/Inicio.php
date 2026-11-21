@@ -11,7 +11,6 @@ class Inicio extends BaseController
         helper('url');
 
         return view('comercial/inicio', [
-            'enderecoDemonstracao' => site_url('organizacao/1/dashboard'),
             'enderecoLogin' => site_url('login'),
             'enderecoContato' => '#',
         ]);

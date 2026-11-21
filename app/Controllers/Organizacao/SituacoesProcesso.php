@@ -2,8 +2,6 @@
 
 namespace App\Controllers\Organizacao;
 
-use App\Controllers\BaseController;
-use App\Libraries\Admin\SimulacaoEmpresa;
 use App\Libraries\Organizacao\AcessoOrganizacao;
 use App\Libraries\Organizacao\GestaoSituacoesProcesso;
 use CodeIgniter\Database\Exceptions\DatabaseException;
@@ -11,8 +9,19 @@ use CodeIgniter\HTTP\ResponseInterface;
 use DomainException;
 
 /** Recebe alterações das situações pela administração da organização. */
-class SituacoesProcesso extends BaseController
+class SituacoesProcesso extends Configuracoes
 {
+    public function exibir(string $hash): ResponseInterface
+    {
+        $banco = db_connect();
+        $contexto = (new AcessoOrganizacao($banco))->contexto($hash, true);
+        return $this->renderizarConfiguracao($hash, 'situacoes-processo', 'Situações de processo', $contexto, [
+            'situacoesProcesso' => (new GestaoSituacoesProcesso($banco, (string) $contexto['empresa']))->listar(),
+            'edicaoSituacaoProcesso' => $this->request->getGet('situacao'),
+            'exclusaoSituacaoProcesso' => $this->request->getGet('excluir_situacao'),
+        ]);
+    }
+
     /** Valida os dados do cadastro e retorna à aba após gravar. */
     public function salvar(string $hash): ResponseInterface
     {
@@ -43,6 +52,22 @@ class SituacoesProcesso extends BaseController
         return $this->voltar($hash)->with('sucessoSituacaoProcesso', $id === '' ? 'Situação cadastrada.' : 'Situação atualizada.');
     }
 
+    public function definirInicial(string $hash): ResponseInterface
+    {
+        $gestao = $this->autorizar($hash);
+        $id = $this->request->getPost('situacao_inicial');
+        try {
+            if (!is_string($id) || !preg_match('/^[1-9][0-9]{0,19}$/D', $id)) {
+                throw new DomainException('Selecione uma situação ativa para a abertura.');
+            }
+            $gestao->definirInicial($id);
+        } catch (DomainException | DatabaseException $erro) {
+            $mensagem = $erro instanceof DomainException ? $erro->getMessage() : 'Não foi possível definir a situação inicial.';
+            return $this->voltar($hash)->with('erroSituacaoProcesso', $mensagem);
+        }
+        return $this->voltar($hash)->with('sucessoSituacaoProcesso', 'Situação inicial definida.');
+    }
+
     /** Exclui uma situação sem vínculos ou orienta a inativação. */
     public function excluir(string $hash, string $id): ResponseInterface
     {
@@ -61,10 +86,7 @@ class SituacoesProcesso extends BaseController
     private function autorizar(string $hash): GestaoSituacoesProcesso
     {
         $banco = db_connect();
-        $simulando = (session()->get(SimulacaoEmpresa::SESSAO)['hash'] ?? null) === $hash;
-        $contexto = $simulando
-            ? SimulacaoEmpresa::contexto($this->request, $hash, true)
-            : (new AcessoOrganizacao($banco))->contexto($hash, true);
+        $contexto = (new AcessoOrganizacao($banco))->contexto($hash, true);
         return new GestaoSituacoesProcesso($banco, (string) $contexto['empresa']);
     }
 
@@ -73,6 +95,6 @@ class SituacoesProcesso extends BaseController
     {
         helper('url');
         $consulta = $edicao === null ? '' : '?' . http_build_query(['situacao' => $edicao]);
-        return redirect()->to(site_url('organizacao/' . $hash . '/configuracoes') . $consulta . '#situacoes-processo', 303)->withCookies();
+        return redirect()->to(site_url('organizacao/' . $hash . '/configuracoes/situacoes-processo') . $consulta, 303)->withCookies();
     }
 }

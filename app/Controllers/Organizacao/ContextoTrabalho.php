@@ -3,11 +3,8 @@
 namespace App\Controllers\Organizacao;
 
 use App\Controllers\BaseController;
-use App\Libraries\Admin\ConsultaEmpresa;
-use App\Libraries\Admin\SimulacaoEmpresa;
 use App\Libraries\Organizacao\AcessoOrganizacao;
 use App\Libraries\Organizacao\ContextoSetor;
-use CodeIgniter\Exceptions\PageNotFoundException;
 use CodeIgniter\HTTP\ResponseInterface;
 
 /** Aplica a escolha de unidade e setor à sessão de trabalho. */
@@ -18,17 +15,9 @@ class ContextoTrabalho extends BaseController
     {
         helper('url');
         $banco = db_connect();
-        $simulado = (session()->get(SimulacaoEmpresa::SESSAO)['hash'] ?? null) === $hash;
-        $contexto = $simulado ? SimulacaoEmpresa::contexto($this->request, $hash) : (new AcessoOrganizacao($banco))->contexto($hash);
+        $contexto = (new AcessoOrganizacao($banco))->contexto($hash);
         $empresa = (string) $contexto['empresa'];
-        if ($simulado && $contexto['usuario'] !== 'administrador') {
-            $usuarios = array_column((new ConsultaEmpresa($banco, $empresa))->usuarios(), null, 'id');
-            $usuario = $usuarios[$contexto['usuario']] ?? null;
-            if (!$usuario) throw PageNotFoundException::forPageNotFound();
-            $vinculo = (string) $usuario['vinculo_id'];
-        } else {
-            $vinculo = !$simulado && !$contexto['fundador'] ? (string) $contexto['vinculo'] : null;
-        }
+        $vinculo = $contexto['fundador'] ? null : (string) $contexto['vinculo'];
 
         $unidade = $this->request->getPost('unidade');
         $setor = $this->request->getPost('setor');
@@ -36,6 +25,9 @@ class ContextoTrabalho extends BaseController
         $caminho = match ($pagina) {
             'processos' => 'processos',
             'configuracoes' => 'configuracoes',
+            'configuracoes/estrutura', 'configuracoes/equipe', 'configuracoes/perfis',
+            'configuracoes/tipos-processo', 'configuracoes/situacoes-processo' => $pagina,
+            'perfil' => 'meu-perfil',
             'documentos', 'assinaturas', 'pastas', 'unidades', 'setores' => 'dashboard?modulo=' . $pagina,
             default => 'dashboard',
         };

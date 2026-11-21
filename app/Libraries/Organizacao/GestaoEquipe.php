@@ -7,7 +7,6 @@ use DomainException;
 use RuntimeException;
 use Throwable;
 use App\Libraries\Admin\ConsultaEmpresa;
-use App\Libraries\Admin\EstruturaSimulada;
 
 /** Gerencia a equipe e os perfis sem alterar contas de outras organizações. */
 class GestaoEquipe
@@ -32,11 +31,11 @@ class GestaoEquipe
         ];
     }
 
-    /** Adapta os cadastros reais ao mesmo formato usado na tela demonstrativa. */
+    /** Prepara a equipe, os vínculos e os perfis para as telas de configuração. */
     public function dadosConfiguracoes(): array
     {
         $painel = $this->painel();
-        $estrutura = (new EstruturaSimulada($this->banco, $this->empresa))->listar();
+        $estrutura = (new GestaoEstrutura($this->banco, $this->empresa))->dadosConfiguracoes();
         $pessoas = [];
         foreach ((new ConsultaEmpresa($this->banco, $this->empresa))->usuarios() as $usuario) {
             $pessoas[(string) $usuario['vinculo_id']] = [
@@ -58,14 +57,8 @@ class GestaoEquipe
                 'escopo' => $atribuicao['setor_id'] ? 'setor:' . $atribuicao['setor_id'] : ($atribuicao['unidade_id'] ? 'unidade:' . $atribuicao['unidade_id'] : 'organizacao'),
             ];
         }
-        $formatarEstrutura = static fn (array $registro, string $superior) => [
-            'id' => (string) $registro['id'], 'nome' => $registro['nome'], 'sigla' => $registro['sigla'],
-            'status' => $registro['status'], 'superior' => (string) $registro[$superior],
-        ];
         return [
-            'dados' => [
-                'unidades' => array_map(static fn ($unidade) => $formatarEstrutura($unidade, 'unidade_superior_id'), $estrutura['unidades']),
-                'setores' => array_map(static fn ($setor) => $formatarEstrutura($setor, 'setor_superior_id') + ['unidade' => (string) $setor['unidade_id']], $estrutura['setores']),
+            'dados' => $estrutura + [
                 'pessoas' => array_values($pessoas),
                 'perfis' => array_map(static fn ($perfil) => [
                     'id' => (string) $perfil['id'], 'nome' => $perfil['nome'], 'descricao' => $perfil['descricao'] ?? '',

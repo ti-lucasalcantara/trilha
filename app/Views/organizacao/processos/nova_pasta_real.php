@@ -2,7 +2,7 @@
 <dialog id="dialogo-pasta-real" class="dialogo-colunas dialogo-pasta" aria-labelledby="titulo-pasta-real">
     <h2 id="titulo-pasta-real">Nova pasta</h2>
     <?php $setorAtivo = $contextoTrabalho['setor']; ?>
-    <?php if (!$setorAtivo || ($modoSimulacao && !$responsaveisPasta)): ?>
+    <?php if (!$setorAtivo || ($simulacaoSemVinculo && !$responsaveisPasta)): ?>
         <p id="contexto-pasta"><?= !$setorAtivo ? 'Cadastre e selecione um setor ativo para criar a pasta.' : 'Para criar uma pasta na simulação, vincule primeiro um usuário interno ativo à empresa.' ?></p>
         <form method="dialog" class="rodape-colunas"><button class="botao-filtros">Fechar</button></form>
     <?php else: ?>
@@ -11,7 +11,7 @@
             <label for="nome-pasta-real">Nome da pasta<input id="nome-pasta-real" name="nome" maxlength="200" required autofocus></label>
             <input type="hidden" name="setor_contexto" value="<?= esc($setorAtivo['id'], 'attr') ?>">
             <p id="contexto-pasta">A pasta será criada em <strong><?= esc($setorAtivo['nome']) ?></strong>, o setor selecionado no cabeçalho.</p>
-            <?php if ($modoSimulacao): ?>
+            <?php if ($simulacaoSemVinculo): ?>
                 <label for="responsavel-pasta-real">Registrar em nome de
                     <select id="responsavel-pasta-real" name="responsavel" required>
                         <option value="">Selecione um usuário interno</option>

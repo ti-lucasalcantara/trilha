@@ -16,7 +16,7 @@
                 <?php endforeach ?>
             </select>
         </label>
-        <?php if ($modoSimulacao): ?>
+        <?php if ($simulacaoSemVinculo): ?>
             <label>Registrar em nome de
                 <select name="responsavel" required>
                     <option value="">Selecione um usuário interno</option>

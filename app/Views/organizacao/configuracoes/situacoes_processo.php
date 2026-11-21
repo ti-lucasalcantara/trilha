@@ -1,9 +1,13 @@
+<?= $this->extend('organizacao/configuracoes') ?>
+
+<?= $this->section('painelConfiguracoes') ?>
 <?php
 // A consulta define qual formulário aparece dentro da aba.
 $baseSituacoes = site_url('organizacao/' . $identificadorOrganizacao);
-$abaSituacoes = $baseSituacoes . '/configuracoes#situacoes-processo';
-$enderecoSituacao = static fn (array $consulta) => $baseSituacoes . '/configuracoes?' . http_build_query($consulta) . '#situacoes-processo';
+$abaSituacoes = $baseSituacoes . '/configuracoes/situacoes-processo';
+$enderecoSituacao = static fn (array $consulta) => $baseSituacoes . '/configuracoes/situacoes-processo?' . http_build_query($consulta);
 $porId = array_column($situacoesProcesso, null, 'id');
+$situacoesAtivas = array_filter($situacoesProcesso, static fn (array $situacao): bool => (bool) $situacao['ativo']);
 $novaSituacao = $edicaoSituacaoProcesso === 'nova';
 $situacaoEditada = is_string($edicaoSituacaoProcesso) ? ($porId[$edicaoSituacaoProcesso] ?? null) : null;
 $situacaoExcluida = is_string($exclusaoSituacaoProcesso) ? ($porId[$exclusaoSituacaoProcesso] ?? null) : null;
@@ -15,14 +19,14 @@ if (is_array($dadosAnteriores) && (string) $dadosSituacao['id'] === $dadosAnteri
 // O seletor nativo precisa de uma cor hexadecimal e usa o roxo do Trilha como padrão.
 $corSituacao = preg_match('/^#[0-9a-f]{6}$/iD', $dadosSituacao['cor'] ?? '') ? $dadosSituacao['cor'] : '#7c3aed';
 ?>
-<section id="situacoes-processo" class="cartao-configuracoes" aria-labelledby="titulo-situacoes-processo" hidden>
+<section id="situacoes-processo" class="cartao-configuracoes" aria-labelledby="titulo-situacoes-processo">
     <header>
         <div>
             <h2 id="titulo-situacoes-processo">Situações de processo <span class="contagem-configuracoes"><?= count($situacoesProcesso) ?></span></h2>
-            <p>Defina as situações e a ordem em que aparecem na abertura de processos.</p>
+            <p>Gerencie as situações e escolha qual será aplicada aos novos processos.</p>
         </div>
         <?php if (!$novaSituacao && !$situacaoEditada): ?>
-            <a class="btn btn-primary" href="<?= esc($enderecoSituacao(['situacao' => 'nova']), 'attr') ?>"><i class="fa-solid fa-plus" aria-hidden="true"></i>Nova situação</a>
+            <a class="btn btn-primary text-white ms-auto" href="<?= esc($enderecoSituacao(['situacao' => 'nova']), 'attr') ?>"><i class="fa-solid fa-plus" aria-hidden="true"></i>Nova situação</a>
         <?php endif ?>
     </header>
 
@@ -68,7 +72,7 @@ $corSituacao = preg_match('/^#[0-9a-f]{6}$/iD', $dadosSituacao['cor'] ?? '') ? $
                 <button class="btn btn-primary" type="submit">Salvar situação</button>
             </div>
         </form>
-    <?php elseif ($situacaoExcluida && !$situacaoExcluida['em_uso']): ?>
+    <?php elseif ($situacaoExcluida && !$situacaoExcluida['em_uso'] && !$situacaoExcluida['inicial']): ?>
         <form class="alert alert-warning mx-3" method="post" action="<?= esc($baseSituacoes . '/situacoes-processo/' . $situacaoExcluida['id'] . '/excluir', 'attr') ?>">
             <?= csrf_field() ?>
             <p>Confirma a exclusão de <strong><?= esc($situacaoExcluida['nome']) ?></strong>?</p>
@@ -82,6 +86,25 @@ $corSituacao = preg_match('/^#[0-9a-f]{6}$/iD', $dadosSituacao['cor'] ?? '') ? $
     <?php endif ?>
 
     <?php if ($situacoesProcesso && !$novaSituacao && !$situacaoEditada): ?>
+        <?php if ($situacoesAtivas): ?>
+            <form class="border-top p-3 p-md-4" method="post" action="<?= esc($baseSituacoes . '/situacoes-processo/inicial', 'attr') ?>">
+                <?= csrf_field() ?>
+                <label class="form-label" for="situacao-inicial-organizacao">Situação inicial dos novos processos</label>
+                <div class="row g-2">
+                    <div class="col-12 col-md-6">
+                        <select class="form-select" id="situacao-inicial-organizacao" name="situacao_inicial" required>
+                            <option value="">Selecione uma situação ativa</option>
+                            <?php foreach ($situacoesAtivas as $situacao): ?>
+                                <option value="<?= esc((string) $situacao['id'], 'attr') ?>" <?= $situacao['inicial'] ? 'selected' : '' ?>><?= esc($situacao['nome']) ?></option>
+                            <?php endforeach ?>
+                        </select>
+                    </div>
+                    <div class="col-auto"><button class="btn btn-primary" type="submit">Salvar situação inicial</button></div>
+                </div>
+            </form>
+        <?php else: ?>
+            <p class="alert alert-warning mx-3" role="status">Ative uma situação para poder defini-la como inicial.</p>
+        <?php endif ?>
         <div class="table-responsive">
             <table class="table table-vcenter card-table mb-0">
                 <thead><tr><th scope="col">Situação</th><th scope="col">Ordem</th><th scope="col">Disponibilidade</th><th scope="col" class="text-end">Ações</th></tr></thead>
@@ -93,6 +116,7 @@ $corSituacao = preg_match('/^#[0-9a-f]{6}$/iD', $dadosSituacao['cor'] ?? '') ? $
                                     <span class="badge badge-dot me-1" style="background-color:<?= esc($situacao['cor'], 'attr') ?>" aria-hidden="true"></span>
                                 <?php endif ?>
                                 <strong><?= esc($situacao['nome']) ?></strong>
+                                <?php if ($situacao['inicial']): ?><span class="badge bg-primary-lt ms-1">Inicial</span><?php endif ?>
                                 <?php if ($situacao['descricao']): ?><div class="text-secondary text-break"><?= esc($situacao['descricao']) ?></div><?php endif ?>
                             </td>
                             <td><?= esc((string) $situacao['ordem']) ?></td>
@@ -100,7 +124,7 @@ $corSituacao = preg_match('/^#[0-9a-f]{6}$/iD', $dadosSituacao['cor'] ?? '') ? $
                             <td>
                                 <div class="d-flex justify-content-end gap-2">
                                     <a class="controle-configuracoes" href="<?= esc($enderecoSituacao(['situacao' => $situacao['id']]), 'attr') ?>">Editar<span class="visualmente-oculto"> <?= esc($situacao['nome']) ?></span></a>
-                                    <?php if (!$situacao['em_uso']): ?>
+                                    <?php if (!$situacao['em_uso'] && !$situacao['inicial']): ?>
                                         <a class="controle-configuracoes" href="<?= esc($enderecoSituacao(['excluir_situacao' => $situacao['id']]), 'attr') ?>">Excluir<span class="visualmente-oculto"> <?= esc($situacao['nome']) ?></span></a>
                                     <?php endif ?>
                                 </div>
@@ -112,3 +136,4 @@ $corSituacao = preg_match('/^#[0-9a-f]{6}$/iD', $dadosSituacao['cor'] ?? '') ? $
         </div>
     <?php endif ?>
 </section>
+<?= $this->endSection() ?>

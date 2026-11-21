@@ -1,13 +1,13 @@
 <?php
 
-namespace App\Libraries\Admin;
+namespace App\Libraries\Organizacao;
 
 use CodeIgniter\Database\BaseConnection;
 use CodeIgniter\Exceptions\PageNotFoundException;
 use RuntimeException;
 
-/** Grava somente a estrutura da empresa selecionada na simulação. */
-class EstruturaSimulada
+/** Lista e atualiza unidades e setores da organização. */
+class GestaoEstrutura
 {
     public function __construct(private readonly BaseConnection $banco, private readonly string $empresa)
     {
@@ -19,6 +19,19 @@ class EstruturaSimulada
         $unidades = $this->banco->table('unidades')->where('organizacao_id', $this->empresa)->orderBy('nome')->get()->getResultArray();
         $setores = $this->banco->table('setores')->where('organizacao_id', $this->empresa)->orderBy('nome')->get()->getResultArray();
         return compact('unidades', 'setores');
+    }
+
+    public function dadosConfiguracoes(): array
+    {
+        $estrutura = $this->listar();
+        $formatar = static fn (array $registro, string $superior): array => [
+            'id' => (string) $registro['id'], 'nome' => $registro['nome'], 'sigla' => $registro['sigla'],
+            'status' => $registro['status'], 'superior' => (string) $registro[$superior],
+        ];
+        return [
+            'unidades' => array_map(static fn ($unidade) => $formatar($unidade, 'unidade_superior_id'), $estrutura['unidades']),
+            'setores' => array_map(static fn ($setor) => $formatar($setor, 'setor_superior_id') + ['unidade' => (string) $setor['unidade_id']], $estrutura['setores']),
+        ];
     }
 
     /** Inclui ou edita um registro, conferindo o escopo também no UPDATE. */

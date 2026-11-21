@@ -1,37 +1,36 @@
-/** Controla a seleção de documentos e as prévias de ações sem gravar dados. */
+/** Controla a seleção de documentos e as informações do processo. */
 (() => {
     'use strict';
 
     const documentos = Array.from(document.querySelectorAll('[data-documento]'));
     const campoPesquisa = document.getElementById('pesquisa-documentos');
-    const visualizador = document.getElementById('visualizador-pdf');
     const dialogoAcao = document.getElementById('dialogo-acao');
     const divisaoProcesso = document.getElementById('divisao-processo');
     const botaoAmpliar = document.getElementById('ampliar-visualizador');
     const corpoDocumentos = document.getElementById('corpo-documentos');
     const botaoDocumentos = document.getElementById('alternar-documentos');
-    const processoReal = document.querySelector('[data-processo-real]');
+    const processoReal = document.querySelector('.area-processo');
     let documentoSelecionado = documentos[0];
     const acoes = {
-        adicionar: ['Adicionar documento', 'Escolha como deseja preparar um novo documento para o processo.'],
-        remover: ['Remover documento', 'Prévia da solicitação de remoção do documento selecionado.'],
-        tramitar: ['Tramitar processo', 'Escolha um destino demonstrativo para avaliar o encaminhamento.'],
-        acesso: ['Nível de acesso', 'Prévia da configuração de acesso ao item indicado abaixo.'],
-        historico: ['Histórico do processo', 'Movimentações fictícias para avaliar a apresentação do histórico.'],
-        informacoes: ['Informações do processo', 'Dados demonstrativos do processo que está sendo visualizado.'],
-        etiquetas: ['Gerenciar etiquetas', 'Prévia da organização do processo por etiquetas.'],
-        pastas: ['Organizar em pasta', 'Prévia da associação do processo a uma pasta.'],
-        concluir: ['Concluir processo', 'A conclusão e suas condições serão implementadas posteriormente.'],
-        assinar: ['Assinar documento', 'Confira o documento e a versão antes de uma futura assinatura.'],
-        bloco: ['Incluir em bloco de assinatura', 'Selecione um bloco demonstrativo para o documento indicado.'],
-        editar: ['Editar documento', 'O editor e as regras de edição serão construídos em uma próxima etapa.'],
-        versoes: ['Versões do documento', 'Prévia da consulta às versões do documento selecionado.'],
-        solicitar: ['Solicitar assinatura', 'A seleção de signatários e o acompanhamento serão construídos posteriormente.'],
+        adicionar: 'Adicionar documento',
+        remover: 'Remover documento',
+        tramitar: 'Tramitar processo',
+        acesso: 'Nível de acesso',
+        historico: 'Histórico do processo',
+        informacoes: 'Informações do processo',
+        etiquetas: 'Gerenciar etiquetas',
+        pastas: 'Organizar em pasta',
+        concluir: 'Concluir processo',
+        assinar: 'Assinar documento',
+        bloco: 'Incluir em bloco de assinatura',
+        editar: 'Editar documento',
+        versoes: 'Versões do documento',
+        solicitar: 'Solicitar assinatura',
     };
 
     if (!campoPesquisa || !dialogoAcao) return;
 
-    /** Seleciona o documento e sincroniza sua identificação com o PDF de teste. */
+    /** Seleciona o documento e sincroniza sua identificação na área de visualização. */
     function selecionarDocumento(documento) {
         documentoSelecionado = documento;
         documentos.forEach(function atualizarSelecao(item) {
@@ -46,7 +45,6 @@
         document.getElementById('data-documento-ativo').textContent = `Incluído em ${dados.data}`;
         document.getElementById('posicao-documento').textContent = `Documento ${documentos.indexOf(documento) + 1} de ${documentos.length}`;
         document.getElementById('anuncio-documento').textContent = `${dados.titulo} selecionado. As opções agora se referem a este documento.`;
-        if (visualizador) visualizador.title = `PDF — ${dados.arquivo}`;
     }
 
     /** Filtra a lista sem perder a seleção do documento que já está em leitura. */
@@ -61,7 +59,7 @@
         document.getElementById('documentos-vazios').hidden = quantidadeVisivel !== 0;
     }
 
-    /** Apresenta a prévia correta e identifica seu alvo como processo ou documento. */
+    /** Apresenta a ação e identifica seu alvo como processo ou documento. */
     function abrirAcao(botao) {
         const chave = botao.dataset.acao;
         const configuracao = acoes[chave];
@@ -69,41 +67,15 @@
         const dados = documentoSelecionado?.dataset;
         const usaDocumento = botao.dataset.ambito === 'documento' || chave === 'remover';
         if (usaDocumento && !dados) return;
-        if (processoReal) {
-            const informacoes = document.getElementById('informacoes-processo-real');
-            informacoes.hidden = chave !== 'informacoes';
-            document.getElementById('titulo-acao').textContent = configuracao[0];
-            document.getElementById('descricao-acao').textContent = chave === 'acesso'
-                ? `Nível atual: ${usaDocumento ? dados.acesso : processoReal.dataset.acesso}.`
-                : chave === 'informacoes' ? '' : 'Esta ação ainda não está disponível.';
-            document.getElementById('referencia-acao').textContent = usaDocumento ? dados.arquivo : document.querySelector('.numero-processo').textContent;
-            botao.closest('details')?.removeAttribute('open');
-            dialogoAcao.showModal();
-            return;
-        }
-        document.getElementById('ambito-acao').textContent = usaDocumento ? 'Ação sobre o documento selecionado' : 'Ação sobre o processo';
-        document.getElementById('titulo-acao').textContent = configuracao[0];
-        document.getElementById('descricao-acao').textContent = configuracao[1];
-        document.getElementById('referencia-acao').textContent = usaDocumento ? `${dados.numero} · ${dados.titulo} · Versão ${dados.versao}` : document.querySelector('.numero-processo').textContent;
-        const painelExiste = Boolean(document.querySelector(`[data-painel="${chave}"]`));
-        document.querySelectorAll('[data-painel]').forEach(function escolherPainel(painel) {
-            painel.hidden = painel.dataset.painel !== (painelExiste ? chave : 'padrao');
-        });
-        document.getElementById('explicacao-acao').textContent = chave === 'versoes' ? `Versão atual do documento: ${dados.versao}. O histórico de versões será implementado posteriormente.` : configuracao[1];
-        document.getElementById('versao-assinatura').textContent = `Versão ${dados.versao} · ${dados.situacao}`;
-        document.getElementById('nivel-acesso-previa').value = usaDocumento ? dados.acesso : document.querySelector('.area-processo').dataset.acesso;
-        document.querySelectorAll('.menu-suspenso[open]').forEach(function fecharMenu(menu) { menu.open = false; });
+        const informacoes = document.getElementById('informacoes-processo-real');
+        informacoes.hidden = chave !== 'informacoes';
+        document.getElementById('titulo-acao').textContent = configuracao;
+        document.getElementById('descricao-acao').textContent = chave === 'acesso'
+            ? `Nível atual: ${usaDocumento ? dados.acesso : processoReal.dataset.acesso}.`
+            : chave === 'informacoes' ? '' : 'Esta ação ainda não está disponível.';
+        document.getElementById('referencia-acao').textContent = usaDocumento ? dados.arquivo : document.querySelector('.numero-processo').textContent;
+        botao.closest('details')?.removeAttribute('open');
         dialogoAcao.showModal();
-    }
-
-    /** Alterna o formulário ilustrativo de criação pelo editor ou envio de arquivo. */
-    function selecionarOrigem(botao) {
-        const usaEditor = botao.dataset.origem === 'editor';
-        document.querySelectorAll('[data-origem]').forEach(function atualizarOrigem(item) {
-            item.setAttribute('aria-pressed', String(item === botao));
-        });
-        document.getElementById('previa-editor').hidden = !usaEditor;
-        document.getElementById('previa-upload').hidden = usaEditor;
     }
 
     /** Amplia a leitura ocultando temporariamente a coluna de documentos. */
@@ -191,9 +163,6 @@
     document.querySelectorAll('[data-fechar-acao]').forEach(function configurarFechamento(botao) {
         botao.addEventListener('click', function fecharAcao() { dialogoAcao.close(); });
     });
-    document.querySelectorAll('[data-origem]').forEach(function configurarOrigem(botao) {
-        botao.addEventListener('click', function escolherOrigem() { selecionarOrigem(botao); });
-    });
     if (documentos.length) campoPesquisa.addEventListener('input', pesquisarDocumentos);
     else campoPesquisa.disabled = true;
     botaoAmpliar?.addEventListener('click', alternarLeituraAmpliada);
@@ -203,18 +172,11 @@
         botaoDocumentos.setAttribute('aria-label', corpoDocumentos.hidden ? 'Expandir lista de documentos' : 'Recolher lista de documentos');
         botaoDocumentos.querySelector('i').className = corpoDocumentos.hidden ? 'fa-solid fa-chevron-down' : 'fa-solid fa-chevron-up';
     });
-    document.getElementById('acompanhar-processo').addEventListener('click', function alternarAcompanhamento(evento) {
-        if (processoReal) {
-            document.getElementById('titulo-acao').textContent = 'Acompanhar processo';
-            document.getElementById('descricao-acao').textContent = 'Esta ação ainda não está disponível.';
-            document.getElementById('informacoes-processo-real').hidden = true;
-            document.getElementById('referencia-acao').textContent = document.querySelector('.numero-processo').textContent;
-            dialogoAcao.showModal();
-            return;
-        }
-        const botao = evento.currentTarget;
-        const acompanhado = botao.getAttribute('aria-pressed') !== 'true';
-        botao.setAttribute('aria-pressed', String(acompanhado));
-        botao.querySelector('i').className = acompanhado ? 'fa-solid fa-star' : 'fa-regular fa-star';
+    document.getElementById('acompanhar-processo').addEventListener('click', function informarAcompanhamento() {
+        document.getElementById('titulo-acao').textContent = 'Acompanhar processo';
+        document.getElementById('descricao-acao').textContent = 'Esta ação ainda não está disponível.';
+        document.getElementById('informacoes-processo-real').hidden = true;
+        document.getElementById('referencia-acao').textContent = document.querySelector('.numero-processo').textContent;
+        dialogoAcao.showModal();
     });
 })();

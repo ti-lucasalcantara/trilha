@@ -18,23 +18,29 @@ class AberturaProcesso
     {
         return [
             'tipos' => $this->cadastroAtivo('tipos_processo')->select('id, nome')->orderBy('nome')->get()->getResultArray(),
-            'situacoes' => $this->cadastroAtivo('status_processo')->select('id, nome')->orderBy('ordem')->orderBy('id')->get()->getResultArray(),
+            'situacaoInicial' => $this->cadastroAtivo('status_processo')->select('nome')->where('inicial', 1)->get()->getRowArray(),
         ];
     }
 
     /** Grava o processo, seu estado inicial e as concessões selecionadas. */
     public function abrir(array $dados, array $setor, string $autor, int $ano): string
     {
+        $descricaoFormatada = DescricaoProcesso::limpar($dados['descricao_formatada'] ?? '');
+        if (strlen($descricaoFormatada) > 65535) throw new DomainException('A descrição excede o tamanho permitido.');
+
         $this->banco->transException(true);
         if (!$this->banco->transBegin()) throw new DomainException('Não foi possível iniciar a abertura do processo.');
         try {
             $this->banco->query('SELECT id FROM organizacoes WHERE id = ? FOR UPDATE', [$this->empresa]);
             $agora = date('Y-m-d H:i:s');
             // Mantém a situação ativa até concluir a abertura, mesmo durante uma edição concorrente.
-            $situacao = $this->banco->query('SELECT id FROM status_processo WHERE organizacao_id = ? AND id = ? AND ativo = 1 FOR UPDATE',
-                [$this->empresa, $dados['situacao']])->getRowArray();
-            if (!$this->cadastroAtivo('tipos_processo')->where('id', $dados['tipo'])->countAllResults() || !$situacao) {
-                throw new DomainException('Selecione um tipo e uma situação ativos desta organização.');
+            $situacao = $this->banco->query('SELECT id FROM status_processo WHERE organizacao_id = ? AND inicial = 1 AND ativo = 1 FOR UPDATE',
+                [$this->empresa])->getRowArray();
+            if (!$situacao) {
+                throw new DomainException('Peça à administração para definir a situação inicial da organização em Configurações.');
+            }
+            if (!$this->cadastroAtivo('tipos_processo')->where('id', $dados['tipo'])->countAllResults()) {
+                throw new DomainException('Selecione um tipo de processo ativo desta organização.');
             }
 
             $tipo = ['organizacao_id' => $this->empresa, 'tipo_processo_id' => $dados['tipo']];
@@ -73,13 +79,14 @@ class AberturaProcesso
                 'tipo_processo_versao_id' => $versao['id'], 'regra_numeracao_id' => $regra['id'],
                 'numero_sequencial' => $numero, 'numero_completo' => $numeroCompleto,
                 'assunto' => $dados['assunto'], 'descricao' => $dados['descricao'] === '' ? null : $dados['descricao'],
-                'status_id' => $dados['situacao'], 'unidade_origem_id' => $setor['unidade'], 'setor_origem_id' => $setor['id'],
+                'descricao_formatada' => $dados['descricao'] !== '' && $descricaoFormatada !== '' ? $descricaoFormatada : null,
+                'status_id' => $situacao['id'], 'unidade_origem_id' => $setor['unidade'], 'setor_origem_id' => $setor['id'],
                 'aberto_por' => $autor, 'aberto_em' => $agora, 'criado_em' => $agora,
             ]);
             $processo = (string) $this->banco->insertID();
             $registro = ['organizacao_id' => $this->empresa, 'processo_id' => $processo, 'criado_em' => $agora];
             $this->banco->table('processo_eventos_estado')->insert($registro + [
-                'estado_novo_id' => $dados['situacao'], 'autor_id' => $autor, 'ocorrido_em' => $agora,
+                'estado_novo_id' => $situacao['id'], 'autor_id' => $autor, 'ocorrido_em' => $agora,
             ]);
             $this->banco->table('politicas_acesso')->insert($registro + [
                 'nivel' => $dados['acesso'], 'herda_processo' => 0, 'alterada_por' => $autor,

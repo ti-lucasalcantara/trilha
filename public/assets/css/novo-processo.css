@@ -1,0 +1,63 @@
+.controle-acesso-processo { position: relative; display: flex; align-items: stretch; gap: .375rem; }
+.controle-acesso-processo .form-select { min-width: 0; }
+.ajuda-acesso-processo { flex: none; }
+.ajuda-acesso-processo summary { height: 100%; list-style: none; }
+.ajuda-acesso-processo summary::-webkit-details-marker { display: none; }
+.explicacoes-acesso-processo {
+    position: absolute;
+    z-index: 5;
+    inset: calc(100% + .375rem) auto auto 0;
+    width: max-content;
+    max-width: 100%;
+    padding: .625rem .75rem;
+    border: 1px solid var(--tblr-border-color);
+    border-radius: var(--tblr-border-radius);
+    background: var(--tblr-bg-surface, #fff);
+    box-shadow: 0 4px 12px rgb(0 0 0 / 12%);
+}
+.explicacoes-acesso-processo li + li { margin-top: .25rem; }
+
+#form-abertura-processo .select2-selection--single {
+    display: flex;
+    align-items: center;
+    min-height: calc(1.428571em + .875rem + 2px);
+    border: 1px solid var(--tblr-border-color);
+    border-radius: var(--tblr-border-radius);
+    background: var(--tblr-bg-forms, #fff);
+}
+
+#form-abertura-processo .select2-selection__rendered {
+    padding-inline: .75rem 2rem;
+    color: var(--tblr-body-color);
+}
+
+#form-abertura-processo .select2-selection__arrow { top: 50%; right: .4rem; transform: translateY(-50%); }
+#form-abertura-processo .select2-selection:focus-visible,
+#form-abertura-processo .editor-descricao-processo:focus-within {
+    outline: 2px solid var(--tblr-primary);
+    outline-offset: 2px;
+}
+
+.editor-descricao-processo .ql-toolbar.ql-snow {
+    border-color: var(--tblr-border-color);
+    border-radius: var(--tblr-border-radius) var(--tblr-border-radius) 0 0;
+    background: var(--tblr-bg-surface-secondary, #f6f8fb);
+}
+
+.editor-descricao-processo .ql-container.ql-snow {
+    border-color: var(--tblr-border-color);
+    border-radius: 0 0 var(--tblr-border-radius) var(--tblr-border-radius);
+    background: var(--tblr-bg-forms, #fff);
+    font: inherit;
+}
+
+.editor-descricao-processo .ql-editor {
+    min-height: 8rem;
+    padding: .625rem .75rem;
+}
+
+.editor-descricao-processo .ql-editor.ql-blank::before {
+    inset-inline: .75rem;
+    color: var(--tblr-secondary);
+    font-style: normal;
+}

@@ -25,7 +25,7 @@
         botao?.closest('dialog')?.close('cancelar');
     });
 
-    /** Apresenta uma mensagem da prévia sem executar operações no servidor. */
+    /** Exibe uma mensagem de interface. */
     function exibirAviso(mensagem) {
         if (!avisoInterface) return;
         clearTimeout(temporizadorAviso);
@@ -71,16 +71,14 @@
         botao.addEventListener('click', function mostrarAviso() { exibirAviso(botao.dataset.aviso); });
     });
     document.querySelector('[data-focar-pesquisa]')?.addEventListener('click', focarPesquisa);
-    /** Atualiza a lista dependente e aplica o contexto real ou demonstrativo. */
+    /** Atualiza a lista dependente e aplica o contexto de trabalho. */
     function configurarContextoTrabalho() {
         const formulario = document.getElementById('seletor-trabalho-cabecalho');
         if (!formulario) return;
         const unidade = formulario.elements.namedItem('unidade');
         const setor = formulario.elements.namedItem('setor');
         if (unidade.disabled) return;
-        const exemplo = formulario.dataset.demonstrativo === 'true';
         const opcoes = Array.from(setor.options);
-        const chave = 'trilha-contexto-demo';
         const dialogo = document.getElementById('confirmar-contexto-trabalho');
         const campos = [unidade, setor].map(seletor => ({
             seletor, rotulo: seletor === unidade ? 'unidade' : 'setor',
@@ -95,28 +93,7 @@
             if (disponiveis.some(opcao => opcao.value === escolhido)) setor.value = escolhido;
         }
 
-        function aplicarSelecao() {
-            if (!setor.value) return;
-            if (!exemplo) {
-                formulario.requestSubmit();
-                return;
-            }
-            preferencias.gravar(chave, [unidade.value, setor.value]);
-            document.dispatchEvent(new Event('contexto-trabalho-alterado'));
-        }
-
-        let escolhido = setor.value;
-        if (exemplo) {
-            try {
-                const [unidadeSalva, setorSalvo] = preferencias.ler(chave) ?? [];
-                if (Array.from(unidade.options).some(opcao => opcao.value === unidadeSalva)) {
-                    unidade.value = unidadeSalva;
-                    escolhido = setorSalvo;
-                }
-            } catch { /* Usa o primeiro setor disponível. */ }
-            formulario.addEventListener('submit', evento => evento.preventDefault());
-        }
-        atualizarSetores(escolhido);
+        atualizarSetores(setor.value);
         contextoAtual = [unidade.value, setor.value];
 
         /** Mostra os nomes como texto clicável até que o usuário queira editar. */
@@ -185,7 +162,7 @@
             campoAtivo = null;
             exibirCampos();
             anterior?.botao.focus();
-            aplicarSelecao();
+            if (setor.value) formulario.requestSubmit();
         });
 
         document.addEventListener('click', function fecharSeletorExterno(evento) {

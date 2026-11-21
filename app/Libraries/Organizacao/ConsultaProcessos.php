@@ -67,7 +67,7 @@ class ConsultaProcessos
             ->select("(SELECT GROUP_CONCAT(DISTINCT s.nome SEPARATOR ',') FROM tramitacao_destinatarios d JOIN setores s ON s.organizacao_id = d.organizacao_id AND s.id = d.setor_id WHERE d.organizacao_id = p.organizacao_id AND d.tramitacao_id = (SELECT MAX(t.id) FROM tramitacoes t WHERE t.organizacao_id = p.organizacao_id AND t.processo_id = p.id AND t.documento_id IS NULL)) AS destinos_registrados", false)
             ->select('(SELECT MAX(t.enviada_em) FROM tramitacoes t WHERE t.organizacao_id = p.organizacao_id AND t.processo_id = p.id AND t.documento_id IS NULL) AS ultima_tramitacao', false);
         if ($vinculo !== null) $consulta->where(PoliticaProcesso::condicao($this->banco, 'p', $vinculo), null, false);
-        if ($hash !== null) $consulta->where('p.hash_publico', $hash);
+        if ($hash !== null) $consulta->select('p.descricao_formatada, p.aberto_por')->where('p.hash_publico', $hash);
         $this->filtrarCaixa($consulta, $acessoDireto ? 'consultaveis' : $caixa);
 
         $etiquetas = $this->banco->table('processo_etiquetas pe')->select('pe.processo_id, e.nome')
@@ -107,26 +107,41 @@ class ConsultaProcessos
     }
 
     /** Executa o lote inteiro ou reverte todas as mudanças se uma seleção ficou indisponível. */
-    public function executarLote(array $hashes, string $acao, string $caixa, string $destino, ?string $vinculo, string $autor): void
+    public function executarLote(array $hashes, string $acao, string $caixa, string|array $destino, ?string $vinculo, string $autor, array $manter = []): void
     {
         $this->banco->transException(true);
         if (!$this->banco->transBegin()) throw new DomainException('Não foi possível iniciar a operação.');
         try {
             $this->banco->query('SELECT id FROM organizacoes WHERE id = ? FOR UPDATE', [$this->empresa]);
-            $consulta = $this->banco->table('processos p')->select('p.id')
+            $consulta = $this->banco->table('processos p')->select('p.id, p.hash_publico')
                 ->where('p.organizacao_id', $this->empresa)->whereIn('p.hash_publico', $hashes)
                 ->where(ContextoSetor::condicaoProcessos($this->banco, $this->setorAtivo, 'p'), null, false);
             if ($vinculo !== null) $consulta->where(PoliticaProcesso::condicao($this->banco, 'p', $vinculo), null, false);
             $this->filtrarCaixa($consulta, $caixa);
+            if ($acao === 'encaminhar') $consulta->where('p.encerrado_em', null);
             $processos = $consulta->get()->getResultArray();
             if (count($processos) !== count($hashes)) throw new DomainException('A seleção mudou. Confira a caixa e o setor e tente novamente.');
 
             $pastas = $acao === 'mover' ? $this->caminhosPastas($this->explorador($vinculo)['pastasReais']) : [];
             if ($acao === 'mover' && !isset($pastas[$destino])) throw new DomainException('A pasta de destino não está disponível neste setor.');
+            if ($acao === 'encaminhar') {
+                $setores = (new ContextoSetor($this->banco, $this->empresa, null))->obter()['setores'];
+                if (!isset($setores[$this->setorAtivo]) || !$destino || in_array($this->setorAtivo, $destino, true)
+                    || array_diff($destino, array_keys($setores))) {
+                    throw new DomainException('Escolha um ou mais setores ativos diferentes do setor atual.');
+                }
+                $origem = $setores[$this->setorAtivo];
+                $setoresDestino = array_map(static fn (string $id): array => $setores[$id], $destino);
+            }
             $agora = date('Y-m-d H:i:s');
             foreach ($processos as $processo) {
                 $chave = ['organizacao_id' => $this->empresa, 'processo_id' => $processo['id']];
-                if ($acao === 'mover') {
+                $detalhes = ['caixa' => $caixa, 'pasta' => $acao === 'mover' ? $destino : null];
+                if ($acao === 'encaminhar') {
+                    $manterOrigem = in_array($processo['hash_publico'], $manter, true);
+                    $this->encaminhar($chave, $origem, $setoresDestino, $manterOrigem, $autor, $agora);
+                    $detalhes = ['setor_origem' => $origem['id'], 'setores_destino' => $destino, 'manter_no_setor' => $manterOrigem];
+                } elseif ($acao === 'mover') {
                     $vinculos = $this->banco->table('pasta_processos')->where($chave);
                     $vinculos->whereIn('pasta_id', array_keys($pastas))->where('pasta_id !=', $destino)->delete();
                     if (!$vinculos->where($chave + ['pasta_id' => $destino])->countAllResults()) {
@@ -139,13 +154,59 @@ class ConsultaProcessos
                 }
                 $this->banco->table('historico_eventos')->insert($chave + [
                     'tipo' => 'processo.' . $acao, 'autor_id' => $autor, 'ocorrido_em' => $agora, 'criado_em' => $agora,
-                    'visibilidade' => 'interno', 'detalhes' => json_encode(['caixa' => $caixa, 'pasta' => $destino ?: null], JSON_THROW_ON_ERROR),
+                    'visibilidade' => 'interno', 'detalhes' => json_encode($detalhes, JSON_THROW_ON_ERROR),
                 ]);
             }
             if (!$this->banco->transStatus() || !$this->banco->transCommit()) throw new DomainException('Não foi possível concluir a operação.');
         } catch (Throwable $erro) {
             $this->banco->transRollback();
             throw $erro;
+        }
+    }
+
+    /** Registra o novo encaminhamento e conserva os destinos já ativos em outros setores. */
+    private function encaminhar(array $chave, array $origem, array $destinos, bool $manter, string $autor, string $agora): void
+    {
+        $ultima = $this->banco->table('tramitacoes')->select('id')->where($chave)->where('documento_id', null)
+            ->orderBy('id', 'DESC')->get(1)->getRowArray();
+        $destinatarios = $ultima ? $this->banco->table('tramitacao_destinatarios')
+            ->where(['organizacao_id' => $this->empresa, 'tramitacao_id' => $ultima['id']])->get()->getResultArray() : [];
+        $destinatarios = array_values(array_filter($destinatarios, static fn (array $item): bool => $manter || (string) $item['setor_id'] !== $origem['id']));
+
+        $this->banco->table('tramitacoes')->insert($chave + [
+            'setor_origem_id' => $origem['id'], 'unidade_origem_id' => $origem['unidade'],
+            'remetente_id' => $autor, 'enviada_em' => $agora, 'criado_em' => $agora,
+        ]);
+        $tramitacao = $this->banco->insertID();
+        $setoresRegistrados = array_map('strval', array_column($destinatarios, 'setor_id'));
+        foreach ($manter ? [...$destinos, $origem] : $destinos as $setor) {
+            if (in_array($setor['id'], $setoresRegistrados, true)) continue;
+            $destinatarios[] = [
+                'organizacao_id' => $this->empresa, 'unidade_id' => $setor['unidade'], 'setor_id' => $setor['id'],
+                'modalidade' => 'encaminhamento', 'status' => 'pendente',
+            ];
+        }
+        foreach ($destinatarios as $item) {
+            unset($item['id']);
+            $item['tramitacao_id'] = $tramitacao;
+            $item['criado_em'] = $agora;
+            $this->banco->table('tramitacao_destinatarios')->insert($item);
+        }
+
+        $politica = $this->banco->table('politicas_acesso')->select('id, nivel')->where($chave)->where('documento_id', null)
+            ->orderBy('id', 'DESC')->get(1)->getRowArray();
+        if (($politica['nivel'] ?? null) !== 'restrito') return;
+        $escopo = ['organizacao_id' => $this->empresa, 'politica_id' => $politica['id']];
+        $ids = array_column($destinos, 'id');
+        $vigentes = $this->banco->table('concessoes_acesso')->select('setor_id')
+            ->where($escopo + ['permite_visualizar' => 1, 'revogado_em' => null])->whereIn('setor_id', $ids)
+            ->where('inicio_em <=', $agora)
+            ->groupStart()->where('expira_em', null)->orWhere('expira_em >', $agora)->groupEnd()->get()->getResultArray();
+        foreach (array_diff($ids, array_column($vigentes, 'setor_id')) as $id) {
+            $this->banco->table('concessoes_acesso')->insert($escopo + [
+                'setor_id' => $id, 'permite_visualizar' => 1, 'permite_download' => 0, 'permite_editar' => 0, 'permite_tramitar' => 0,
+                'inicio_em' => $agora, 'concedido_por' => $autor, 'criado_em' => $agora,
+            ]);
         }
     }
 

@@ -11,7 +11,7 @@
         <h1>Escolha uma organização</h1>
         <div class="list-group">
             <?php foreach ($vinculos as $vinculo): ?>
-                <a class="list-group-item list-group-item-action" href="<?= esc(site_url('organizacao/' . $vinculo['hash'] . '/dashboard'), 'attr') ?>"><?= esc($vinculo['organizacao']) ?></a>
+                <a class="list-group-item list-group-item-action" href="<?= esc(site_url('organizacao/' . $vinculo['hash'] . '/escolher-setor'), 'attr') ?>"><?= esc($vinculo['organizacao']) ?></a>
             <?php endforeach ?>
         </div>
     </main>

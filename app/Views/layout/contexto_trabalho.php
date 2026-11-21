@@ -1,31 +1,14 @@
 <?php
-// Mantém uma escolha de setor por unidade; no demo a seleção fica no navegador.
-$demonstrativo = !isset($contextoTrabalho);
-if ($demonstrativo) {
-    $estruturaExemplo = $unidades ?? [
-        'Matriz' => array_fill_keys(['Administrativo', 'Financeiro', 'Jurídico', 'Recursos Humanos', 'Tecnologia'], true),
-        'Filial Centro' => array_fill_keys(['Operações', 'Financeiro', 'Administrativo'], true),
-    ];
-    $opcoesUnidades = [];
-    foreach ($estruturaExemplo as $unidade => $setores) {
-        $opcoesUnidades[] = ['id' => (string) $unidade, 'nome' => $unidade,
-            'setores' => array_map(static fn ($setor) => ['id' => (string) $setor, 'nome' => $setor], array_keys($setores))];
-    }
-    $setorAtual = null;
-} else {
-    $opcoesUnidades = $contextoTrabalho['unidades'];
-    $setorAtual = $contextoTrabalho['setor'];
-}
+$opcoesUnidades = $contextoTrabalho['unidades'];
+$setorAtual = $contextoTrabalho['setor'];
 ?>
-<?php if (!$demonstrativo && ($erroContexto = session()->getFlashdata('erroContextoTrabalho'))): ?>
+<?php if (($erroContexto = session()->getFlashdata('erroContextoTrabalho'))): ?>
     <p class="aviso-contexto-trabalho" role="alert"><?= esc($erroContexto) ?></p>
 <?php endif ?>
-<form class="seletor-trabalho-cabecalho" id="seletor-trabalho-cabecalho" data-demonstrativo="<?= $demonstrativo ? 'true' : 'false' ?>"
-    <?php if (!$demonstrativo): ?> method="post" action="<?= esc(site_url('organizacao/' . $identificadorOrganizacao . '/contexto-trabalho'), 'attr') ?>"<?php endif ?>>
-    <?php if (!$demonstrativo): ?>
-        <?= csrf_field() ?>
-        <input type="hidden" name="pagina" value="<?= esc($paginaAtiva, 'attr') ?>">
-    <?php endif ?>
+<form class="seletor-trabalho-cabecalho" id="seletor-trabalho-cabecalho"
+     method="post" action="<?= esc(site_url('organizacao/' . $identificadorOrganizacao . '/contexto-trabalho'), 'attr') ?>">
+    <?= csrf_field() ?>
+    <input type="hidden" name="pagina" value="<?= esc(isset($secaoConfiguracoes) ? 'configuracoes/' . $secaoConfiguracoes : $paginaAtiva, 'attr') ?>">
     <button type="button" class="nome-contexto-trabalho" id="editar-unidade-trabalho" aria-controls="unidade-trabalho" aria-expanded="false" hidden></button>
     <label for="unidade-trabalho" class="campo-contexto-trabalho"><span class="visualmente-oculto">Unidade</span>
         <select id="unidade-trabalho" name="unidade" <?= !$opcoesUnidades ? 'disabled' : '' ?>>
@@ -46,7 +29,7 @@ if ($demonstrativo) {
             <?php endforeach ?>
         </select>
     </label>
-    <?php if (!$demonstrativo && $opcoesUnidades): ?><noscript><button type="submit" class="btn">Aplicar</button></noscript><?php endif ?>
+    <?php if ($opcoesUnidades): ?><noscript><button type="submit" class="btn">Aplicar</button></noscript><?php endif ?>
 </form>
 <dialog id="confirmar-contexto-trabalho" class="dialogo-contexto-trabalho" aria-labelledby="titulo-confirmar-contexto" aria-describedby="descricao-confirmar-contexto">
     <h2 id="titulo-confirmar-contexto"></h2>

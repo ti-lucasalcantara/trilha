@@ -1,4 +1,4 @@
-/** Implementa a navegação, os filtros e a paginação locais da consulta demonstrativa. */
+/** Implementa a navegação, os filtros e a paginação locais da consulta. */
 (() => {
     'use strict';
 
@@ -18,17 +18,18 @@
     const botaoFiltros = document.getElementById('alternar-filtros');
     const painelFiltros = document.getElementById('filtros-avancados');
     const dialogoColunas = document.getElementById('dialogo-colunas');
-    const avisoColunas = document.getElementById('aviso-colunas');
-    const opcoesColunas = Array.from(dialogoColunas.querySelectorAll('input[name="colunas"]'));
+    const listaColunas = dialogoColunas.querySelector('.opcoes-colunas');
+    const opcoesColunas = new Map(Array.from(listaColunas.children, opcao => [opcao.dataset.opcaoColuna, opcao]));
     const tabelaConsulta = corpoConsulta.closest('table');
-    const cabecalhosColunas = Array.from(tabelaConsulta.querySelectorAll('th[data-coluna]'));
+    const cabecalhosColunas = new Map(Array.from(tabelaConsulta.querySelectorAll('th[data-coluna]'), celula => [celula.dataset.coluna, celula]));
+    let ordemColunas = [...opcoesColunas.keys()];
     const botaoExplorador = document.getElementById('alternar-explorador');
     const arvoreExplorador = document.getElementById('arvore-explorador');
     const estruturaExplorador = document.querySelector('.estrutura-explorador');
-    const contextoDemo = document.querySelector('#seletor-trabalho-cabecalho[data-demonstrativo="true"]');
     const consultaCelular = window.matchMedia('(max-width: 650px)');
     const preferencias = window.preferenciasTrilha;
     const barraLote = document.getElementById('acoes-lote-processos');
+    const seletorTodosProcessos = document.getElementById('selecionar-todos-processos');
     const seletoresLote = Array.from(document.querySelectorAll('.selecionar-processo'));
     let itemSelecionado = itensExplorador[0];
     let paginaAtual = 1;
@@ -36,6 +37,58 @@
     let temporizadorCopia;
     let temporizadorAcompanhamento;
     let filaAlteracoes = Promise.resolve();
+    let tooltipObservacoesAtivo;
+
+    function fecharTooltipObservacoes() {
+        tooltipObservacoesAtivo?.hidePopover();
+        tooltipObservacoesAtivo = null;
+    }
+
+    tabelaConsulta.querySelectorAll('.tooltip-observacoes').forEach(tooltip => {
+        const celula = tooltip.closest('td');
+        const link = celula.querySelector('a.abrir-consulta');
+
+        function exibirObservacoes() {
+            if (tooltipObservacoesAtivo === tooltip) return;
+            fecharTooltipObservacoes();
+            tooltip.showPopover();
+            tooltipObservacoesAtivo = tooltip;
+
+            const referencia = celula.getBoundingClientRect();
+            const dimensoes = tooltip.getBoundingClientRect();
+            const escala = dimensoes.width / tooltip.offsetWidth;
+            const largura = document.documentElement.clientWidth;
+            const altura = document.documentElement.clientHeight;
+            const margem = 8;
+            const direita = referencia.right;
+            const esquerda = direita + dimensoes.width > largura - margem
+                ? referencia.left - dimensoes.width : direita;
+            const topo = referencia.top + (referencia.height - dimensoes.height) / 2;
+            tooltip.style.left = `${Math.max(margem, Math.min(esquerda, largura - dimensoes.width - margem)) / escala}px`;
+            tooltip.style.top = `${Math.max(margem, Math.min(topo, altura - dimensoes.height - margem)) / escala}px`;
+        }
+
+        celula.addEventListener('pointerenter', evento => {
+            if (evento.pointerType !== 'touch') exibirObservacoes();
+        });
+        celula.addEventListener('pointerleave', () => {
+            if (tooltipObservacoesAtivo === tooltip && !link?.matches(':focus-visible')) fecharTooltipObservacoes();
+        });
+        link?.addEventListener('focus', () => {
+            if (link.matches(':focus-visible')) exibirObservacoes();
+        });
+        link?.addEventListener('blur', () => {
+            if (tooltipObservacoesAtivo === tooltip && !celula.matches(':hover')) fecharTooltipObservacoes();
+        });
+    });
+
+    document.addEventListener('keydown', evento => {
+        if (evento.key === 'Escape') fecharTooltipObservacoes();
+    });
+    window.addEventListener('resize', fecharTooltipObservacoes);
+    window.addEventListener('scroll', evento => {
+        if (evento.target !== tooltipObservacoesAtivo) fecharTooltipObservacoes();
+    }, true);
 
     /** Serializa requisições da listagem que renovam o mesmo token CSRF. */
     function enviarAlteracaoProcessos(endereco, dados) {
@@ -96,18 +149,12 @@
         return texto.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('pt-BR');
     }
 
-    /** Formata a data demonstrativa sem conversões de fuso horário. */
+    /** Formata a data sem conversões de fuso horário. */
     function formatarData(data) {
         return data.split('-').reverse().join('/');
     }
 
-    /** Aplica o contexto no demo; a consulta real já chega filtrada do servidor. */
-    function pertenceAoContexto(registro) {
-        return !contextoDemo || (registro.dataset.unidade === contextoDemo.elements.namedItem('unidade').value
-            && registro.dataset.setor === contextoDemo.elements.namedItem('setor').value);
-    }
-
-    /** Verifica o vínculo do exemplo com a unidade, setor ou pasta selecionados. */
+    /** Verifica o vínculo com a pasta selecionada. */
     function correspondeExplorador(registro) {
         const selecao = itemSelecionado.dataset;
         const dados = registro.dataset;
@@ -115,13 +162,6 @@
         if (selecao.escopo === 'unidade') return dados.unidadeEscopo === selecao.valor;
         if (selecao.escopo === 'setor') return dados.unidadeEscopo === selecao.unidade && dados.setorEscopo === selecao.valor;
         if (selecao.escopo === 'pasta-real') return dados.pastasProcesso.split(',').includes(selecao.valor);
-        if (selecao.escopo === 'grupo-pasta') {
-            return Array.from(itemSelecionado.closest('.no-pasta').querySelectorAll('[data-escopo="pasta"]')).some(function contemProcesso(subpasta) {
-                return dados.grupo === subpasta.dataset.grupo && dados.pasta === subpasta.dataset.valor;
-            });
-        }
-        if (selecao.escopo === 'pasta') return dados.grupo === selecao.grupo && dados.pasta === selecao.valor;
-        if (selecao.escopo === 'pasta-local') return false;
         return true;
     }
 
@@ -137,7 +177,6 @@
         return registros.filter(function verificarRegistro(registro) {
             if (periodoInvalido || !correspondeExplorador(registro)) return false;
             const dados = registro.dataset;
-            if (!pertenceAoContexto(registro)) return false;
             const texto = normalizarTexto([dados.numero, dados.assunto, dados.interessado].join(' '));
             if (!texto.includes(pesquisa)) return false;
             return camposFiltros.every(function verificarCampo(campo) {
@@ -150,7 +189,7 @@
         });
     }
 
-    /** Ordena os exemplos pelas datas exibidas na consulta. */
+    /** Ordena os processos pelas datas exibidas na consulta. */
     function ordenarRegistros(resultado) {
         const ordenacao = seletorOrdenacao.value;
         return resultado.sort(function compararRegistros(primeiro, segundo) {
@@ -229,6 +268,7 @@
 
     /** Exibe somente os registros filtrados que pertencem à página selecionada. */
     function atualizarConsulta() {
+        fecharTooltipObservacoes();
         const resultado = ordenarRegistros(filtrarRegistros());
         const quantidadePorPagina = Number(seletorQuantidade.value);
         quantidadePaginas = Math.max(1, Math.ceil(resultado.length / quantidadePorPagina));
@@ -254,13 +294,21 @@
         });
     }
 
+    function seletoresLoteVisiveis() {
+        return seletoresLote.filter(campo => !campo.disabled && !campo.closest('tr').hidden && !campo.closest('td').hidden);
+    }
+
     /** Retira da seleção processos que deixaram a página visível. */
     function atualizarSelecaoLote() {
         if (!barraLote) return;
+        const visiveis = new Set(seletoresLoteVisiveis());
         seletoresLote.forEach(campo => {
-            if (campo.closest('tr').hidden || campo.closest('td').hidden) campo.checked = false;
+            if (!visiveis.has(campo)) campo.checked = false;
         });
         const quantidade = seletoresLote.filter(campo => campo.checked).length;
+        seletorTodosProcessos.disabled = visiveis.size === 0;
+        seletorTodosProcessos.checked = visiveis.size > 0 && quantidade === visiveis.size;
+        seletorTodosProcessos.indeterminate = quantidade > 0 && quantidade < visiveis.size;
         barraLote.querySelectorAll('[data-acao-lote]').forEach(botao => {
             botao.disabled = quantidade === 0 || botao.hasAttribute('data-lote-indisponivel');
         });
@@ -419,35 +467,56 @@
 
     /** Reflete a exibição atual ao abrir, descartando escolhas canceladas. */
     function abrirColunas() {
-        opcoesColunas.forEach(function marcarOpcao(opcao, indice) {
-            opcao.checked = !cabecalhosColunas[indice].hidden;
+        ordemColunas.forEach(coluna => {
+            const opcao = opcoesColunas.get(coluna);
+            opcao.querySelector('input').checked = !cabecalhosColunas.get(coluna).hidden;
+            listaColunas.append(opcao);
         });
-        avisoColunas.hidden = true;
+        atualizarSetasColunas();
         dialogoColunas.showModal();
-        opcoesColunas[0].focus();
+        listaColunas.querySelector('input:enabled')?.focus();
     }
+
+    function atualizarSetasColunas() {
+        const editaveis = Array.from(listaColunas.children).slice(1);
+        editaveis.forEach((opcao, indice) => {
+            opcao.querySelector('[data-mover-coluna="-1"]').disabled = indice === 0;
+            opcao.querySelector('[data-mover-coluna="1"]').disabled = indice === editaveis.length - 1;
+        });
+    }
+
+    listaColunas.addEventListener('click', evento => {
+        const botao = evento.target.closest('[data-mover-coluna]');
+        if (!botao || botao.disabled) return;
+        const opcao = botao.closest('[data-opcao-coluna]');
+        const subir = botao.dataset.moverColuna === '-1';
+        if (subir) opcao.previousElementSibling.before(opcao);
+        else opcao.nextElementSibling.after(opcao);
+        atualizarSetasColunas();
+        (botao.disabled ? opcao.querySelector('button:enabled') : botao)?.focus();
+    });
 
     /** Aplica a seleção ao cabeçalho e aos registros de todas as páginas. */
     function aplicarColunas(evento) {
         if (evento.submitter?.value !== 'aplicar') return;
 
-        const colunasVisiveis = new Set(opcoesColunas.filter(opcao => opcao.checked).map(opcao => opcao.value));
-        if (!colunasVisiveis.size) {
-            evento.preventDefault();
-            avisoColunas.hidden = false;
-            opcoesColunas[0].focus();
-            return;
-        }
-
+        ordemColunas = Array.from(listaColunas.children, opcao => opcao.dataset.opcaoColuna);
+        const colunasVisiveis = new Set(['processo']);
+        listaColunas.querySelectorAll('input:checked').forEach(opcao => colunasVisiveis.add(opcao.value));
         mostrarColunas(colunasVisiveis);
-        preferencias.gravar('processos:colunas', Array.from(colunasVisiveis));
-        if (opcoesColunas.some(opcao => opcao.value === 'pasta')) preferencias.gravar('processos:coluna-pasta-configurada', true);
+        preferencias.gravar('processos:colunas', { ordem: ordemColunas, visiveis: [...colunasVisiveis] });
     }
 
     /** Aplica as mesmas colunas à tabela inteira, inclusive às páginas ocultas. */
     function mostrarColunas(colunasVisiveis) {
-        tabelaConsulta.querySelectorAll('[data-coluna]').forEach(function atualizarColuna(celula) {
-            celula.hidden = !colunasVisiveis.has(celula.dataset.coluna);
+        fecharTooltipObservacoes();
+        tabelaConsulta.querySelectorAll('tr').forEach(linha => {
+            const celulas = new Map(Array.from(linha.cells, celula => [celula.dataset.coluna, celula]));
+            ordemColunas.forEach(coluna => {
+                const celula = celulas.get(coluna);
+                celula.hidden = !colunasVisiveis.has(coluna);
+                linha.append(celula);
+            });
         });
         tabelaConsulta.style.setProperty('--quantidade-colunas', colunasVisiveis.size);
         atualizarSelecaoLote();
@@ -479,10 +548,9 @@
         ramos.forEach(ramo => ramo.addEventListener('toggle', function guardarRamo() {
             preferencias.gravar(`${chaveConsulta(false)}:pasta:${ramo.dataset.pastaPreferencia}`, ramo.open);
         }));
-        document.addEventListener('contexto-trabalho-alterado', restaurarRamos);
     }
 
-    /** Gerencia as pastas da prévia sem alterar os vínculos dos processos. */
+    /** Gerencia as pastas do setor e suas preferências de exibição. */
     function configurarPastas() {
         const arvore = document.getElementById('pastas-explorador');
         const ramo = document.getElementById('ramo-pastas');
@@ -496,7 +564,6 @@
         const erro = document.getElementById('erro-pasta');
         const aviso = document.getElementById('aviso-pastas');
         const destinos = document.getElementById('destinos-pasta');
-        const real = Boolean(dialogo.dataset.endereco);
         const mostrarProcessos = document.getElementById('mostrar-processos-pastas');
         const chaveMostrarProcessos = 'processos:mostrar-processos-pastas';
         const processosPorPasta = new Map();
@@ -520,27 +587,9 @@
         let pastaArrastada;
         let alvoArraste;
         let destinoArraste;
-        const setorDemo = () => `${contextoDemo.elements.namedItem('unidade').value} / ${contextoDemo.elements.namedItem('setor').value}`;
-
-        /** Exibe as pastas demonstrativas ligadas ao setor em uso. */
-        function atualizarPastasDoSetor() {
-            const setor = setorDemo();
-            const registrosDoSetor = registros.filter(pertenceAoContexto);
-            function atualizarPasta(no) {
-                const filhas = Array.from(no.querySelector('.filhas-pasta').children).map(atualizarPasta);
-                const selecao = no.querySelector('.nome-pasta').dataset;
-                const contemProcessos = selecao.escopo === 'pasta' && registrosDoSetor.some(registro =>
-                    registro.dataset.grupo === selecao.grupo && registro.dataset.pasta === selecao.valor
-                );
-                no.hidden = no.dataset.local !== setor && !contemProcessos && !filhas.includes(true);
-                return !no.hidden;
-            }
-            Array.from(arvore.children).forEach(atualizarPasta);
-        }
         const avisoMovimento = document.getElementById('aviso-movimento-pasta');
         const desfazer = document.getElementById('desfazer-movimento-pasta');
         const barraDesfazer = avisoMovimento.querySelector('.progresso-desfazer');
-        const prazoDesfazer = 5000;
         let executarReversao;
         let temporizadorMovimento;
         let animacaoMovimento;
@@ -564,7 +613,7 @@
         }
 
         function atualizarEstadoVazio() {
-            if (real) document.getElementById('pastas-reais-vazias').hidden = Boolean(arvore.childElementCount);
+            document.getElementById('pastas-reais-vazias').hidden = Boolean(arvore.childElementCount);
         }
 
         /** Atualiza o caminho mostrado na consulta sem trocar as chaves originais. */
@@ -677,36 +726,6 @@
             });
         }
 
-        /** Captura a posição e os campos editáveis de uma pasta na demonstração. */
-        function capturarPastaDemo(no) {
-            return no && {
-                lista: no.parentElement, proxima: no.nextElementSibling, dados: { ...no.dataset },
-                titulo: no.querySelector('.nome-pasta').title,
-            };
-        }
-
-        /** Alterna entre os dois estados da última alteração demonstrativa. */
-        function mostrarHistoricoDemo(no, antes, depois, mensagem, refazer = false) {
-            mostrarReversao(mensagem, refazer, prazoDesfazer, function reverterNaPrevia() {
-                const estado = refazer ? depois : antes;
-                const origem = no.parentElement?.closest('.no-pasta');
-                if (estado) {
-                    estado.lista.insertBefore(no, estado.proxima);
-                    Object.assign(no.dataset, estado.dados);
-                    atualizarCaminhos(no);
-                    no.querySelector('.nome-pasta').title = estado.titulo;
-                    for (let superior = estado.lista.closest('.no-pasta'); superior; superior = superior.parentElement.closest('.no-pasta')) {
-                        definirRamo(superior, true);
-                    }
-                } else {
-                    no.remove();
-                }
-                if (origem) definirRamo(origem, Boolean(origem.querySelector('.filhas-pasta').childElementCount));
-                selecionarItem(itemSelecionado.isConnected ? itemSelecionado : itensExplorador[0]);
-                mostrarHistoricoDemo(no, antes, depois, refazer ? 'Alteração refeita.' : 'Alteração desfeita.', !refazer);
-            });
-        }
-
         desfazer.addEventListener('click', async function aplicarReversao() {
             if (!executarReversao || gravando) return;
             desfazer.disabled = true;
@@ -750,18 +769,6 @@
         }
 
         /** Escolhe um nome livre entre as pastas irmãs, ignorando a pasta renomeada. */
-        function nomeDisponivelPasta(lista, nome, pastaAtual = null) {
-            const irmas = Array.from(lista.children).filter(no => no !== pastaAtual);
-            const ocupados = new Set(irmas.map(no => no.dataset.nome.toLowerCase()));
-            const caracteres = Array.from(nome);
-            let candidato = nome;
-            for (let numero = 2; ocupados.has(candidato.toLowerCase()); numero++) {
-                const sufixo = ` (${numero})`;
-                candidato = caracteres.slice(0, 200 - sufixo.length).join('') + sufixo;
-            }
-            return candidato;
-        }
-
         /** Cria um nó da árvore e vincula sua seleção à listagem. */
         function inserirPasta(lista, rotulo, escopo, grupo = '', valor = '') {
             const no = modelo.content.firstElementChild.cloneNode(true);
@@ -773,12 +780,9 @@
             const filhas = no.querySelector('.filhas-pasta');
             filhas.id = `filhas-pasta-${identificador}`;
             const expandir = no.querySelector('.expandir-pasta');
-            expandir.setAttribute('aria-controls', filhas.id);
-            if (real) {
-                const processos = no.querySelector(':scope > .processos-da-pasta');
-                processos.id = `processos-da-pasta-${identificador}`;
-                expandir.setAttribute('aria-controls', `${filhas.id} ${processos.id}`);
-            }
+            const processos = no.querySelector(':scope > .processos-da-pasta');
+            processos.id = `processos-da-pasta-${identificador}`;
+            expandir.setAttribute('aria-controls', `${filhas.id} ${processos.id}`);
             expandir.addEventListener('click', function alternarRamo() { definirRamo(no, filhas.hidden); });
             no.dataset.nome = rotulo;
             Object.assign(botao.dataset, { escopo, grupo, valor });
@@ -804,7 +808,7 @@
             const removendo = acao === 'remover';
             const movendo = acao === 'mover';
             const confirmandoMovimento = acao === 'confirmarMovimento';
-            const bloqueada = removendo && (pasta.querySelector('.filhas-pasta').childElementCount > 0 || pasta.dataset.ocupada === 'true' || pasta.querySelector('.nome-pasta').dataset.escopo === 'pasta');
+            const bloqueada = removendo && (pasta.querySelector('.filhas-pasta').childElementCount > 0 || pasta.dataset.ocupada === 'true');
             formulario.reset();
             destinos.hidden = !movendo;
             destinos.disabled = !movendo;
@@ -813,8 +817,8 @@
             nome.required = !nome.closest('label').hidden;
             nome.value = acao === 'renomear' ? pasta.dataset.nome : '';
             visibilidade.closest('label').hidden = !criando && acao !== 'visibilidade';
-            visibilidade.value = pasta?.dataset.visibilidade ?? (real ? 'setor' : '');
-            if (real && visibilidade.selectedIndex < 0) visibilidade.value = 'setor';
+            visibilidade.value = pasta?.dataset.visibilidade ?? 'setor';
+            if (visibilidade.selectedIndex < 0) visibilidade.value = 'setor';
             if (responsavel) {
                 responsavel.closest('label').hidden = acao !== 'subpasta';
                 responsavel.required = acao === 'subpasta';
@@ -824,7 +828,7 @@
             const caminhoDestino = destinoArraste?.closest('.no-pasta')?.querySelector('.nome-pasta').dataset.rotulo ?? 'Raiz de Pastas';
             document.getElementById('contexto-pasta').textContent = removendo && !bloqueada
                 ? `Remover “${caminho}” do Explorador?`
-                : caminho ?? `Setor selecionado: ${setorDemo()}.`;
+                : caminho ?? `Setor selecionado: ${dialogo.dataset.setor}.`;
             if (confirmandoMovimento) {
                 document.getElementById('contexto-pasta').textContent = `Mover a pasta “${caminho}” para “${caminhoDestino}”?`;
             }
@@ -856,27 +860,24 @@
 
             const movendo = acao === 'mover' || acao === 'confirmarMovimento';
             const destino = acao === 'mover' ? listasDestino.get(formulario.elements.namedItem('destino').value) : destinoArraste;
-            const antes = !real && !['criar', 'subpasta'].includes(acao) ? capturarPastaDemo(pasta) : null;
             let resultado;
             let historico;
-            if (real) {
-                evento.preventDefault();
-                if (gravando) return;
-                const cancelar = formulario.querySelector('[value="cancelar"]');
-                confirmar.disabled = true;
-                cancelar.disabled = true;
-                try {
-                    const retorno = await gravarPasta(movendo ? 'mover' : acao, pasta, destino);
-                    resultado = retorno.pasta;
-                    historico = retorno.historico;
-                } catch (falha) {
-                    erro.textContent = falha.message;
-                    erro.hidden = false;
-                    return;
-                } finally {
-                    confirmar.disabled = false;
-                    cancelar.disabled = false;
-                }
+            evento.preventDefault();
+            if (gravando) return;
+            const cancelar = formulario.querySelector('[value="cancelar"]');
+            confirmar.disabled = true;
+            cancelar.disabled = true;
+            try {
+                const retorno = await gravarPasta(movendo ? 'mover' : acao, pasta, destino);
+                resultado = retorno.pasta;
+                historico = retorno.historico;
+            } catch (falha) {
+                erro.textContent = falha.message;
+                erro.hidden = false;
+                return;
+            } finally {
+                confirmar.disabled = false;
+                cancelar.disabled = false;
             }
             let foco;
             if (movendo) {
@@ -892,14 +893,14 @@
                 if (acao === 'criar' || acao === 'subpasta') {
                     const superior = pasta;
                     const lista = superior?.querySelector('.filhas-pasta') ?? arvore;
-                    pasta = real ? inserirPastaReal(lista, resultado) : inserirPasta(lista, nomeDisponivelPasta(lista, rotulo), 'pasta-local');
-                    const localCriacao = superior?.dataset.local ?? (real ? dialogo.dataset.setor : setorDemo());
+                    pasta = inserirPastaReal(lista, resultado);
+                    const localCriacao = superior?.dataset.local ?? dialogo.dataset.setor;
                     if (localCriacao !== undefined) pasta.dataset.local = localCriacao;
                     if (superior) definirRamo(superior, true);
                     ramo.open = true;
                 }
                 if (acao === 'renomear') {
-                    pasta.dataset.nome = real ? resultado.nome : nomeDisponivelPasta(pasta.parentElement, rotulo, pasta);
+                    pasta.dataset.nome = resultado.nome;
                     atualizarCaminhos(pasta);
                     if (pasta.contains(itemSelecionado)) selecionarItem(itemSelecionado);
                 } else {
@@ -912,19 +913,18 @@
             }
             aviso.textContent = acao === 'mover' || acao === 'confirmarMovimento'
                 ? `Pasta movida para ${foco.dataset.rotulo}.`
-                : real ? 'Alteração salva.' : `${titulos[acao]}: alteração aplicada na prévia.`;
+                : 'Alteração salva.';
             atualizarEstadoVazio();
             dialogo.addEventListener('close', function restaurarFocoPasta() { foco.focus(); }, { once: true });
-            if (real) dialogo.close();
+            dialogo.close();
             const mensagem = movendo ? 'Pasta movida.' : {
                 criar: 'Pasta criada.', subpasta: 'Subpasta criada.', remover: 'Pasta removida.',
                 renomear: 'Pasta renomeada.', visibilidade: 'Visibilidade alterada.',
             }[acao];
-            if (real) mostrarHistoricoReal(historico, mensagem);
-            else mostrarHistoricoDemo(pasta, antes, acao === 'remover' ? null : capturarPastaDemo(pasta), mensagem);
+            mostrarHistoricoReal(historico, mensagem);
         }
 
-        /** Reutiliza a mesma linha do demo com o identificador real da pasta. */
+        /** Cria a linha com o identificador da pasta. */
         function inserirPastaReal(lista, registro) {
             const no = inserirPasta(lista, registro.nome, 'pasta-real', '', String(registro.id));
             no.dataset.local = dialogo.dataset.setor;
@@ -962,16 +962,9 @@
             }
         }
 
-        if (real) {
-            montarArvoreReal(JSON.parse(arvore.dataset.pastasReais));
-            mostrarHistoricoReal(JSON.parse(avisoMovimento.dataset.historico), 'Pasta cadastrada.');
-        } else Object.entries(JSON.parse(arvore.dataset.pastas)).forEach(function montarGrupo([grupo, subpastas]) {
-            const no = inserirPasta(arvore, grupo, 'grupo-pasta', grupo);
-            no.dataset.ramoPreferencia = grupo;
-            const lista = no.querySelector('.filhas-pasta');
-            Object.keys(subpastas).forEach(function montarSubpasta(rotulo) { inserirPasta(lista, rotulo, 'pasta', grupo, rotulo); });
-            definirRamo(no, preferencias.ler(`${chaveConsulta(false)}:ramo:${grupo}`) === true, false);
-        });
+        montarArvoreReal(JSON.parse(arvore.dataset.pastasReais));
+        mostrarHistoricoReal(JSON.parse(avisoMovimento.dataset.historico), 'Pasta cadastrada.');
+
         /** Retorna o destino associado à linha ou ao cabeçalho da raiz. */
         function obterAlvoArraste(elemento) {
             const linha = elemento.closest('.linha-pasta');
@@ -1026,15 +1019,6 @@
         formulario.addEventListener('submit', salvarPasta);
         dialogo.addEventListener('cancel', evento => { if (gravando) evento.preventDefault(); });
         dialogo.addEventListener('close', function limparDestinoArraste() { destinoArraste = null; });
-        if (real) return;
-        document.addEventListener('contexto-trabalho-alterado', encerrarReversao);
-        document.addEventListener('contexto-trabalho-alterado', atualizarPastasDoSetor);
-        document.addEventListener('contexto-trabalho-alterado', function restaurarGrupos() {
-            arvore.querySelectorAll('[data-ramo-preferencia]').forEach(no => {
-                definirRamo(no, preferencias.ler(`${chaveConsulta(false)}:ramo:${no.dataset.ramoPreferencia}`) === true, false);
-            });
-        });
-        atualizarPastasDoSetor();
     }
 
     if (document.getElementById('pastas-explorador')) configurarPastas();
@@ -1042,14 +1026,31 @@
         const dialogo = document.getElementById('dialogo-lote-processos');
         const formulario = dialogo.querySelector('form');
         const destino = formulario.elements.namedItem('destino');
+        const setorDestino = formulario.elements.namedItem('setor_destino[]');
+        const campoSetores = document.getElementById('setor-destino-lote-processos');
+        const seletorSetores = window.jQuery?.fn.select2 ? window.jQuery(setorDestino).select2({
+            language: 'pt-BR', placeholder: 'Selecione um ou mais setores', width: '100%',
+            dropdownParent: window.jQuery(dialogo), closeOnSelect: false,
+        }) : null;
+        if (seletorSetores) {
+            setorDestino.addEventListener('invalid', evento => {
+                evento.preventDefault();
+                seletorSetores.select2('open');
+            });
+        }
         const botaoConfirmar = formulario.querySelector('[type="submit"]');
         const acoes = {
+            encaminhar: ['Encaminhar para o setor', 'Escolha o destino e indique quais processos continuam abertos no seu setor.', 'Encaminhar'],
             mover: ['Mover para', 'Escolha a pasta de destino dos processos selecionados.', 'Mover'],
             arquivar: ['Arquivar selecionados', 'Confirme o arquivamento dos processos selecionados.', 'Arquivar'],
             excluir: ['Excluir selecionados', 'Os processos selecionados irão para a Lixeira e poderão ser restaurados.', 'Mover para a Lixeira'],
             restaurar: ['Restaurar selecionados', 'Os processos selecionados voltarão à caixa anterior.', 'Restaurar'],
         };
         seletoresLote.forEach(campo => campo.addEventListener('change', atualizarSelecaoLote));
+        seletorTodosProcessos.addEventListener('change', () => {
+            seletoresLoteVisiveis().forEach(campo => { campo.checked = seletorTodosProcessos.checked; });
+            atualizarSelecaoLote();
+        });
         barraLote.querySelectorAll('[data-acao-lote]').forEach(botao => {
             botao.addEventListener('click', function abrirLote() {
                 const acao = botao.dataset.acaoLote;
@@ -1058,14 +1059,53 @@
                 formulario.reset();
                 formulario.elements.namedItem('acao').value = acao;
                 document.getElementById('titulo-lote-processos').textContent = titulo;
-                document.getElementById('descricao-lote-processos').textContent = `${selecionados.length} · ${descricao}`;
-                document.getElementById('itens-lote-processos').replaceChildren(...selecionados.map(campo => {
+                document.getElementById('descricao-lote-processos').textContent = acao === 'encaminhar'
+                    ? descricao
+                    : `${selecionados.length} · ${descricao}`;
+                const itens = selecionados.map(campo => {
                     const item = document.createElement('input');
                     item.type = 'hidden';
                     item.name = 'processos[]';
                     item.value = campo.value;
+                    if (acao === 'encaminhar') {
+                        const linha = document.createElement('tr');
+                        const dados = campo.closest('tr').dataset;
+                        const nome = linha.insertCell();
+                        nome.append(item, dados.numero, document.createElement('br'), dados.assunto);
+                        const manter = document.createElement('input');
+                        manter.type = 'checkbox';
+                        manter.className = 'form-check-input';
+                        manter.name = 'manter[]';
+                        manter.value = campo.value;
+                        manter.checked = true;
+                        manter.setAttribute('aria-label', `Manter processo aberto no meu setor · ${dados.numero}`);
+                        linha.insertCell().append(manter);
+                        return linha;
+                    }
                     return item;
-                }));
+                });
+                const lista = document.getElementById('itens-lote-processos');
+                if (acao === 'encaminhar') {
+                    const processos = document.createElement('div');
+                    processos.className = 'lista-encaminhar-processos';
+                    const tabela = document.createElement('table');
+                    const cabecalho = tabela.createTHead().insertRow();
+                    ['Processo', 'Manter aberto no setor'].forEach(rotulo => {
+                        const coluna = document.createElement('th');
+                        coluna.scope = 'col';
+                        coluna.textContent = rotulo;
+                        cabecalho.append(coluna);
+                    });
+                    tabela.createTBody().append(...itens);
+                    processos.append(tabela);
+                    lista.replaceChildren(processos);
+                } else {
+                    lista.replaceChildren(...itens);
+                }
+                campoSetores.hidden = acao !== 'encaminhar';
+                setorDestino.disabled = acao !== 'encaminhar';
+                setorDestino.required = acao === 'encaminhar';
+                seletorSetores?.trigger('change.select2');
                 destino.closest('label').hidden = acao !== 'mover';
                 destino.disabled = acao !== 'mover';
                 destino.required = acao === 'mover';
@@ -1074,7 +1114,10 @@
                 botaoConfirmar.classList.toggle('btn-primary', acao !== 'excluir');
                 botaoConfirmar.textContent = confirmar;
                 dialogo.showModal();
-                (acao === 'mover' ? destino : formulario.querySelector('[data-cancelar-dialogo]')).focus();
+                const primeiroCampo = acao === 'encaminhar'
+                    ? campoSetores.querySelector('.select2-search__field') ?? setorDestino
+                    : acao === 'mover' ? destino : formulario.querySelector('[data-cancelar-dialogo]');
+                primeiroCampo.focus();
             });
         });
     }
@@ -1107,7 +1150,6 @@
     dialogoColunas.querySelector('form').addEventListener('submit', aplicarColunas);
     dialogoColunas.addEventListener('change', function limparAvisoColunas() { avisoColunas.hidden = true; });
     campoPesquisa.addEventListener('input', atualizarFiltros);
-    document.addEventListener('contexto-trabalho-alterado', restaurarConsulta);
     camposFiltros.forEach(function configurarFiltro(campo) { campo.addEventListener('change', atualizarFiltros); });
     seletorOrdenacao.addEventListener('change', atualizarFiltros);
     seletorQuantidade.addEventListener('change', atualizarFiltros);
@@ -1143,11 +1185,13 @@
     consultaCelular.addEventListener('change', restaurarExplorador);
     restaurarExplorador();
     const colunasSalvas = preferencias.ler('processos:colunas');
-    if (Array.isArray(colunasSalvas)) {
-        const disponiveis = new Set(opcoesColunas.map(opcao => opcao.value).filter(coluna => colunasSalvas.includes(coluna)));
-        if (opcoesColunas.some(opcao => opcao.value === 'pasta') && preferencias.ler('processos:coluna-pasta-configurada') !== true) disponiveis.add('pasta');
-        if (disponiveis.size) mostrarColunas(disponiveis);
-    }
+    const ordemSalva = Array.isArray(colunasSalvas?.ordem) ? colunasSalvas.ordem : [];
+    ordemColunas = [...new Set(['processo', ...ordemSalva.filter(coluna => opcoesColunas.has(coluna)), ...ordemColunas])];
+    const visiveisSalvas = Array.isArray(colunasSalvas) ? colunasSalvas : colunasSalvas?.visiveis;
+    const colunasVisiveis = Array.isArray(visiveisSalvas)
+        ? visiveisSalvas.filter(coluna => opcoesColunas.has(coluna))
+        : ['setor-origem', 'pasta', 'acoes'];
+    mostrarColunas(new Set(['processo', ...colunasVisiveis]));
     painelFiltros.hidden = preferencias.ler('processos:painel-filtros') !== true;
     botaoFiltros.setAttribute('aria-expanded', String(!painelFiltros.hidden));
     restaurarConsulta();

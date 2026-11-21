@@ -1,21 +1,30 @@
 <?php
-// As cores identificam apenas as situações fictícias desta demonstração.
+// Cores padrão para situações sem configuração de cor.
 $coresSituacao = ['Aberto' => 'azul', 'Em análise' => 'laranja', 'Em andamento' => 'roxo', 'Concluído' => 'verde', 'Suspenso' => 'neutro'];
 // Usa os mesmos rótulos no cabeçalho e no seletor de colunas.
 $colunasConsulta = [
     'processo' => 'Processo',
     'setor' => 'Setor atual',
+    'setor-origem' => 'Setor de Origem',
+    'pasta' => 'Pasta',
     'situacao' => 'Situação',
     'prazo' => 'Prazo',
+    'observacoes' => 'Observações',
     'acoes' => 'Ações',
 ];
-if (!empty($consultaReal)) {
-    $colunasConsulta = array_slice($colunasConsulta, 0, 2, true) + ['pasta' => 'Pasta'] + $colunasConsulta;
-}
 ?>
 <div class="ferramentas-colunas">
-    <?php if (!empty($consultaReal) && $administradorSimulado): ?>
+    <?php if ($administradorSimulado): ?>
         <div class="acoes-lote-processos" id="acoes-lote-processos">
+            <?php if (in_array('encaminhar', $acoesLote, true)): ?>
+                <?php $podeEncaminhar = count($contextoTrabalho['setores']) > 1; ?>
+                <div class="acao-encaminhar-lote">
+                    <button class="botao-filtros" type="button" data-acao-lote="encaminhar" aria-haspopup="dialog" disabled
+                        <?= !$podeEncaminhar ? 'data-lote-indisponivel title="Nenhum outro setor ativo disponível"' : '' ?>>
+                        <i class="fa-solid fa-share" aria-hidden="true"></i>Encaminhar para o setor
+                    </button>
+                </div>
+            <?php endif ?>
             <?php if (in_array('mover', $acoesLote, true)): ?>
                 <button class="botao-filtros" type="button" data-acao-lote="mover" aria-haspopup="dialog" disabled <?= !$caminhosPastas ? 'data-lote-indisponivel title="Cadastre uma pasta no setor ativo"' : '' ?>><i class="fa-regular fa-folder" aria-hidden="true"></i>Mover para</button>
             <?php endif ?>
@@ -38,13 +47,26 @@ if (!empty($consultaReal)) {
 <dialog id="dialogo-colunas" class="dialogo-colunas" aria-labelledby="titulo-colunas">
     <form method="dialog">
         <h2 id="titulo-colunas">Colunas da tabela</h2>
-        <p>Marque as colunas que deseja exibir.</p>
+        <p>Marque as colunas que deseja exibir e use as setas para mudar a ordem.</p>
         <div class="opcoes-colunas">
             <?php foreach ($colunasConsulta as $coluna => $rotulo): ?>
-                <label><input type="checkbox" name="colunas" value="<?= esc($coluna, 'attr') ?>" checked><?= esc($rotulo) ?></label>
+                <div class="opcao-coluna" data-opcao-coluna="<?= esc($coluna, 'attr') ?>">
+                    <label><input type="checkbox" name="colunas" value="<?= esc($coluna, 'attr') ?>" checked <?= $coluna === 'processo' ? 'disabled' : '' ?>><?= esc($rotulo) ?></label>
+                    <?php if ($coluna === 'processo'): ?>
+                        <small class="text-secondary">Fixa</small>
+                    <?php else: ?>
+                        <div class="ordem-opcao-coluna">
+                            <button type="button" class="botao-filtros" data-mover-coluna="-1" aria-label="<?= esc('Subir ' . $rotulo, 'attr') ?>" title="<?= esc('Subir ' . $rotulo, 'attr') ?>">
+                                <i class="fa-solid fa-arrow-up" aria-hidden="true"></i>
+                            </button>
+                            <button type="button" class="botao-filtros" data-mover-coluna="1" aria-label="<?= esc('Descer ' . $rotulo, 'attr') ?>" title="<?= esc('Descer ' . $rotulo, 'attr') ?>">
+                                <i class="fa-solid fa-arrow-down" aria-hidden="true"></i>
+                            </button>
+                        </div>
+                    <?php endif ?>
+                </div>
             <?php endforeach ?>
         </div>
-        <p id="aviso-colunas" role="alert" hidden>Selecione pelo menos uma coluna.</p>
         <footer class="rodape-colunas">
             <button type="button" data-cancelar-dialogo class="botao-filtros">Cancelar</button>
             <button type="submit" value="aplicar" class="btn btn-primary">Aplicar</button>
@@ -54,18 +76,25 @@ if (!empty($consultaReal)) {
 <div class="cartao-consulta"><div class="tabela-consulta-responsiva" tabindex="0" role="region" aria-label="Lista de processos"><table class="tabela-consulta">
 <thead><tr>
     <?php foreach ($colunasConsulta as $coluna => $rotulo): ?>
-        <th scope="col" data-coluna="<?= esc($coluna, 'attr') ?>"><span<?= $coluna === 'acoes' ? ' class="visualmente-oculto"' : '' ?>><?= esc($rotulo) ?></span></th>
+        <th scope="col" data-coluna="<?= esc($coluna, 'attr') ?>">
+            <?php if ($coluna === 'processo' && $administradorSimulado): ?>
+                <input type="checkbox" id="selecionar-todos-processos" class="form-check-input"
+                    aria-label="Selecionar todos os processos desta página" disabled>
+            <?php endif ?>
+            <span<?= $coluna === 'acoes' ? ' class="visualmente-oculto"' : '' ?>><?= esc($rotulo) ?></span>
+        </th>
     <?php endforeach ?>
 </tr></thead><tbody id="corpo-consulta">
     <?php foreach ($processos as $processo):
-        $enderecoProcesso = site_url('organizacao/' . $identificadorOrganizacao . '/processos/' . ($processo['hash_publico'] ?? $processo['id']));
+        $enderecoProcesso = site_url('organizacao/' . $identificadorOrganizacao . '/processos/' . $processo['hash_publico']);
         $identificadorAcoes = 'acoes-processo-' . $processo['id'];
         $prazo = $processo['prazo'];
         $prazoVencido = $prazo !== '' && $processo['situacao'] !== 'Concluído' && $prazo < date('Y-m-d');
+        $observacoes = trim($processo['descricao'] ?? '');
+        $identificadorObservacoes = 'observacoes-processo-' . $processo['id'];
     ?>
     <tr data-registro="<?= esc((string) $processo['id'], 'attr') ?>" data-numero="<?= esc($processo['numero'], 'attr') ?>" data-assunto="<?= esc($processo['assunto'], 'attr') ?>" data-tipo="<?= esc($processo['tipo'], 'attr') ?>" data-situacao="<?= esc($processo['situacao'], 'attr') ?>" data-unidade="<?= esc($processo['unidade'], 'attr') ?>" data-setor="<?= esc($processo['setor'], 'attr') ?>" data-responsavel="<?= esc($processo['responsavel'], 'attr') ?>" data-acesso="<?= esc($processo['acesso'], 'attr') ?>" data-interessado="<?= esc($processo['interessado'], 'attr') ?>" data-etiqueta="<?= esc($processo['etiqueta'], 'attr') ?>" data-unidade-escopo="<?= esc((string) ($processo['unidadeEscopo'] ?? $processo['unidade']), 'attr') ?>" data-setor-escopo="<?= esc((string) ($processo['setorEscopo'] ?? $processo['setor']), 'attr') ?>" data-pastas-processo="<?= esc($processo['pastas'] ?? '', 'attr') ?>" data-etiquetas-processo="<?= esc(json_encode($processo['etiquetas'] ?? [$processo['etiqueta']], JSON_THROW_ON_ERROR), 'attr') ?>" data-grupo="<?= esc($processo['grupoPasta'], 'attr') ?>" data-pasta="<?= esc($processo['pasta'], 'attr') ?>" data-abertura="<?= esc($processo['abertura'], 'attr') ?>" data-atualizacao="<?= esc($processo['atualizacao'], 'attr') ?>" data-prazo="<?= esc($processo['prazo'], 'attr') ?>" data-acompanhado="<?= $processo['acompanhado'] ? 'true' : 'false' ?>" data-destinos="<?= esc(implode(', ', $processo['destinos']), 'attr') ?>">
         <td class="coluna-identificacao" data-coluna="processo">
-            <?php if (!empty($consultaReal)): ?>
                 <div class="identificacao-com-estrela">
                     <?php if ($administradorSimulado): ?>
                         <input class="form-check-input selecionar-processo" type="checkbox"
@@ -79,31 +108,35 @@ if (!empty($consultaReal)) {
                         title="<?= $processo['acompanhado'] ? 'Deixar de acompanhar' : 'Acompanhar' ?>">
                         <i class="<?= $processo['acompanhado'] ? 'fa-solid' : 'fa-regular' ?> fa-star" aria-hidden="true"></i>
                     </button><?php endif ?>
-            <?php endif ?>
-            <?php if (($caixaProcessos ?? 'ativos') === 'lixeira'): ?><div class="abrir-consulta"><?php else: ?><a class="abrir-consulta" href="<?= esc($enderecoProcesso, 'attr') ?>"><?php endif ?>
+            <?php if (($caixaProcessos ?? 'ativos') === 'lixeira'): ?><div class="abrir-consulta"><?php else: ?><a class="abrir-consulta" href="<?= esc($enderecoProcesso, 'attr') ?>"<?= $observacoes !== '' ? ' aria-describedby="' . esc($identificadorObservacoes, 'attr') . '"' : '' ?>><?php endif ?>
                 <strong><?= esc($processo['assunto']) ?></strong>
                 <span><?= esc($processo['numero']) ?></span>
             <?php if (($caixaProcessos ?? 'ativos') === 'lixeira'): ?></div><?php else: ?></a><?php endif ?>
-            <?php if (!empty($consultaReal)): ?></div><?php endif ?>
+            </div>
+            <?php if ($observacoes !== ''): ?>
+                <div id="<?= esc($identificadorObservacoes, 'attr') ?>" class="tooltip-observacoes" role="tooltip" popover="manual">
+                    <div class="texto-tooltip-observacoes"><?= esc($observacoes) ?></div>
+                    <small class="dica-tooltip-observacoes">Pressione Esc para fechar</small>
+                </div>
+            <?php endif ?>
         </td>
         <td data-coluna="setor"><?= esc(implode(', ', $processo['destinos'])) ?></td>
-        <?php if (!empty($consultaReal)): ?>
+        <td data-coluna="setor-origem"><?= esc($processo['setor']) ?></td>
             <?php $pastasLinha = array_intersect_key($caminhosPastas, array_flip(explode(',', $processo['pastas']))); ?>
             <td data-coluna="pasta">
                 <?php $rotuloPasta = $pastasLinha ? implode(' · ', $pastasLinha) : 'Sem pasta'; ?>
                 <?php if ($caixaProcessos === 'ativos' && $administradorSimulado && ($caminhosPastas || $pastasLinha)): ?>
-                    <button type="button" class="botao-filtros pasta-na-lista"
+                    <button type="button" class="pasta-na-lista"
                         data-mover-processo="<?= esc($enderecoProcesso . '/pasta', 'attr') ?>"
                         data-pastas-vinculadas="<?= esc(json_encode(array_keys($pastasLinha), JSON_THROW_ON_ERROR), 'attr') ?>"
                         aria-haspopup="dialog" aria-controls="dialogo-pasta-processo"
                         aria-label="<?= esc('Alterar pasta de ' . $processo['numero'] . ' · ' . $rotuloPasta, 'attr') ?>">
-                        <i class="fa-regular fa-folder" aria-hidden="true"></i><span><?= esc($rotuloPasta) ?></span><i class="fa-solid fa-chevron-down" aria-hidden="true"></i>
+                        <i class="fa-regular fa-folder" aria-hidden="true"></i><span><?= esc($rotuloPasta) ?></span>
                     </button>
                 <?php else: ?>
-                    <span class="text-secondary"><?= esc($rotuloPasta) ?></span>
+                    <span class="pasta-na-lista"><i class="fa-regular fa-folder" aria-hidden="true"></i><span><?= esc($rotuloPasta) ?></span></span>
                 <?php endif ?>
             </td>
-        <?php endif ?>
         <td data-coluna="situacao">
             <span class="selo-situacao <?= esc(($coresSituacao[$processo['situacao']] ?? 'neutro'), 'attr') ?>">
                 <?php if (preg_match('/^#[0-9a-f]{6}$/iD', $processo['cor_situacao'] ?? '')): ?>
@@ -118,14 +151,15 @@ if (!empty($consultaReal)) {
                 <?php if ($prazoVencido): ?><small>Vencido</small><?php endif ?>
             <?php else: ?>—<?php endif ?>
         </td>
+        <td data-coluna="observacoes"><div class="observacoes-consulta"><?= $observacoes !== '' ? esc($observacoes) : '—' ?></div></td>
         <td class="coluna-acoes" data-coluna="acoes">
             <button type="button" class="abrir-acoes" popovertarget="<?= esc($identificadorAcoes, 'attr') ?>" aria-label="Ações de <?= esc($processo['numero'], 'attr') ?>"><i class="fa-solid fa-ellipsis" aria-hidden="true"></i></button>
             <div id="<?= esc($identificadorAcoes, 'attr') ?>" class="acoes-consulta" popover>
                 <?php if (($caixaProcessos ?? 'ativos') !== 'lixeira'): ?>
                     <a href="<?= esc($enderecoProcesso, 'attr') ?>"><i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i>Abrir processo</a>
-                <?php endif ?>
-                <?php if (empty($consultaReal)): ?>
-                <button type="button" class="acompanhar-processo"><i class="<?= $processo['acompanhado'] ? 'fa-solid' : 'fa-regular' ?> fa-star" aria-hidden="true"></i><span><?= $processo['acompanhado'] ? 'Deixar de acompanhar' : 'Acompanhar' ?></span></button>
+                    <?php if ($administradorSimulado): ?>
+                        <a href="<?= esc($enderecoProcesso . '/editar', 'attr') ?>"><i class="fa-regular fa-pen-to-square" aria-hidden="true"></i>Editar</a>
+                    <?php endif ?>
                 <?php endif ?>
                 <button type="button" class="copiar-numero"><i class="fa-regular fa-copy" aria-hidden="true"></i>Copiar número</button>
             </div>

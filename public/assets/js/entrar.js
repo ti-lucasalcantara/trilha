@@ -9,7 +9,7 @@
     const avisoEntrada = document.getElementById('aviso-entrada');
 
     // Evita executar os eventos quando os elementos da tela não estão presentes.
-    if (!formulario || !campoSenha || !botaoAlternarSenha || !botaoRecuperarSenha || !avisoEntrada) return;
+    if (!formulario || !campoSenha || !botaoAlternarSenha || !avisoEntrada) return;
 
     /** Mostra uma mensagem informativa sem inserir conteúdo HTML. */
     function exibirAviso(mensagem) {
@@ -32,5 +32,5 @@
     }
 
     botaoAlternarSenha.addEventListener('click', alternarVisibilidadeSenha);
-    botaoRecuperarSenha.addEventListener('click', informarRecuperacaoIndisponivel);
+    botaoRecuperarSenha?.addEventListener('click', informarRecuperacaoIndisponivel);
 })();

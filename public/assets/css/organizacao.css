@@ -73,9 +73,6 @@
 .faixa-simulacao > div { display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 100%; }
 .faixa-simulacao strong { font-size: 13px; }
 .faixa-simulacao small { margin-left: 7px; color: #ffe1e5; font-weight: 400; }
-.faixa-simulacao form { margin: 0; flex: none; }
-.faixa-simulacao button { min-height: 32px; padding: 4px 9px; border: 1px solid #ffd2d9; border-radius: 6px; background: #8e192e; color: #fff; }
-.faixa-simulacao button:hover { background: #741226; }
 .em-simulacao .atalho-conteudo:focus { z-index: 1101; }
 .grade-simulacao { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
 .lista-simulacao { list-style: none; margin: 0; padding: 0; }
@@ -91,15 +88,39 @@
 .tabela-simulacao { min-width: 460px; }
 .paginacao-simulacao { display: flex; gap: 8px; padding: 10px 16px; }
 
-/* Usa a mesma composição de marca, empresa e conta do cabeçalho demonstrativo. */
+.area-organizacao { width: 100%; }
+
+/* Alinha a marca, a organização e o menu da conta. */
 .identificacao-empresa-real { display: flex; align-items: center; gap: 9px; min-width: 0; padding-left: 16px; border-left: 1px solid var(--trilha-borda); }
 .identificacao-empresa-real strong { display: block; overflow-wrap: anywhere; }
 .identificacao-empresa-real small { display: block; color: var(--trilha-secundario); }
-.identidade-usuario-real { flex-shrink: 0; gap: 8px; }
-.identidade-usuario-real form { margin: 0; }
+.menu-usuario { flex-shrink: 0; }
+.menu-usuario .nome-usuario { display: block; max-width: min(22vw, 13rem); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.menu-usuario .conteudo-menu { min-width: 9rem; }
+.menu-usuario form { margin: 0; }
+.avatar-usuario { overflow: hidden; flex-shrink: 0; }
+.avatar-usuario img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.avatar-usuario.avatar-perfil { width: 64px; height: 64px; font-size: 22px; }
+.envio-foto-perfil { flex: 1 1 200px; max-width: 360px; min-width: 0; }
+.recorte-foto-perfil { min-width: 0; }
+.previa-foto-perfil {
+    display: block;
+    width: min(100%, 180px);
+    height: auto;
+    aspect-ratio: 1;
+    border-radius: 50%;
+    outline: 1px solid var(--trilha-borda);
+    background: #fff;
+    cursor: grab;
+    touch-action: none;
+}
+.previa-foto-perfil:active { cursor: grabbing; }
+.controles-recorte-perfil { display: flex; flex-wrap: wrap; gap: 5px; }
+.controles-recorte-perfil .btn { min-width: 36px; min-height: 36px; }
 @media (max-width: 600px) {
     .identificacao-empresa-real { padding-left: 8px; font-size: 11px; }
-    .identidade-usuario-real .avatar-usuario { display: none; }
+    .menu-usuario summary { gap: 6px; min-height: 44px; }
+    .menu-usuario .avatar-usuario { flex: none; }
 }
 
 /* Posiciona a unidade sob a organização e o setor ao lado. */

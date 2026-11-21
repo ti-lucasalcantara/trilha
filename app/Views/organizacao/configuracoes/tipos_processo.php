@@ -1,8 +1,11 @@
+<?= $this->extend('organizacao/configuracoes') ?>
+
+<?= $this->section('painelConfiguracoes') ?>
 <?php
 // Mantém cadastro, edição e confirmação de exclusão dentro da mesma aba.
 $baseTipos = site_url('organizacao/' . $identificadorOrganizacao);
-$abaTipos = $baseTipos . '/configuracoes#tipos-processo';
-$enderecoTipo = static fn (array $consulta) => $baseTipos . '/configuracoes?' . http_build_query($consulta) . '#tipos-processo';
+$abaTipos = $baseTipos . '/configuracoes/tipos-processo';
+$enderecoTipo = static fn (array $consulta) => $baseTipos . '/configuracoes/tipos-processo?' . http_build_query($consulta);
 $porId = array_column($tiposProcesso, null, 'id');
 $novoTipo = $edicaoTipoProcesso === 'novo';
 $tipoEditado = is_string($edicaoTipoProcesso) ? ($porId[$edicaoTipoProcesso] ?? null) : null;
@@ -16,14 +19,14 @@ if (is_array($dadosAnteriores) && (string) $dadosTipo['id'] === $dadosAnteriores
     $dadosTipo = array_replace($dadosTipo, $dadosAnteriores);
 }
 ?>
-<section id="tipos-processo" class="cartao-configuracoes" aria-labelledby="titulo-tipos-processo" hidden>
+<section id="tipos-processo" class="cartao-configuracoes" aria-labelledby="titulo-tipos-processo">
     <header>
         <div>
             <h2 id="titulo-tipos-processo">Tipos de processo <span class="contagem-configuracoes"><?= count($tiposProcesso) ?></span></h2>
             <p>Gerencie os tipos disponíveis na abertura e o formato dos seus números oficiais.</p>
         </div>
         <?php if (!$novoTipo && !$tipoEditado): ?>
-            <a class="btn btn-primary" href="<?= esc($enderecoTipo(['tipo' => 'novo']), 'attr') ?>"><i class="fa-solid fa-plus" aria-hidden="true"></i>Novo tipo</a>
+            <a class="btn btn-primary text-white ms-auto" href="<?= esc($enderecoTipo(['tipo' => 'novo']), 'attr') ?>"><i class="fa-solid fa-plus" aria-hidden="true"></i>Novo tipo</a>
         <?php endif ?>
     </header>
     <?php if ($mensagem = session()->getFlashdata('erroTipoProcesso')): ?>
@@ -117,3 +120,4 @@ if (is_array($dadosAnteriores) && (string) $dadosTipo['id'] === $dadosAnteriores
         </div>
     <?php endif ?>
 </section>
+<?= $this->endSection() ?>

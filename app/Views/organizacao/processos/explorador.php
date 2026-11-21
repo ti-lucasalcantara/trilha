@@ -11,39 +11,27 @@
             <button type="button" class="item-explorador<?= $caixaAtual === 'ativos' ? ' selecionado' : '' ?>" data-escopo="todos" data-rotulo="Todos os processos"<?= $voltarAtivos ?><?= $caixaAtual === 'ativos' ? ' aria-current="true"' : '' ?>><i class="fa-solid fa-layer-group" aria-hidden="true"></i><span>Todos os processos</span></button>
             <button type="button" class="item-explorador" data-escopo="acompanhados" data-rotulo="Acompanhados"<?= $voltarAtivos ?>><i class="fa-regular fa-star" aria-hidden="true"></i><span>Acompanhados</span></button>
         </div>
-        <?php if (empty($consultaReal) || $administradorSimulado): ?>
-        <?php if (!empty($consultaReal)): ?>
+        <?php if ($administradorSimulado): ?>
             <label class="preferencia-processos-pastas">
                 <input class="form-check-input" type="checkbox" id="mostrar-processos-pastas">
                 <span>Mostrar processos nas pastas</span>
             </label>
-        <?php endif ?>
         <div class="secao-pastas">
             <details id="ramo-pastas" class="ramo-explorador" data-pasta-preferencia="raiz" <?= !empty($pastaRealCriada) ? 'open data-pasta-recem-criada' : '' ?>>
-                <summary><i class="fa-solid fa-chevron-right seta-ramo" aria-hidden="true"></i><i class="fa-regular fa-folder" aria-hidden="true"></i><span>Pastas</span></summary>
-                <?php if (!empty($consultaReal)): ?>
+                <summary><i class="fa-solid fa-chevron-right seta-ramo" aria-hidden="true"></i><i class="fa-regular fa-folder" aria-hidden="true"></i><span><?= esc($contextoTrabalho['setor']['nome'] ?? 'Pastas') ?></span></summary>
                     <ul id="pastas-explorador" data-pastas-reais="<?= esc(json_encode($pastasReais, JSON_THROW_ON_ERROR), 'attr') ?>"></ul>
                     <p id="pastas-reais-vazias" class="nota-pastas-reais" <?= $pastasReais ? 'hidden' : '' ?>>Nenhuma pasta cadastrada.</p>
-                <?php else: ?>
-                    <ul id="pastas-explorador" data-pastas="<?= esc(json_encode($pastas, JSON_THROW_ON_ERROR), 'attr') ?>"></ul>
-                <?php endif ?>
             </details>
-            <?php if (empty($consultaReal)): ?>
-            <button type="button" class="controle-pasta adicionar-pasta" data-acao-pasta="criar" aria-label="Nova pasta" title="Nova pasta"><i class="fa-solid fa-plus" aria-hidden="true"></i></button>
-            <?php else: ?>
             <button type="button" id="abrir-pasta-real" class="controle-pasta adicionar-pasta" aria-haspopup="dialog" aria-controls="dialogo-pasta-real" aria-label="Nova pasta" title="Nova pasta"><i class="fa-solid fa-plus" aria-hidden="true"></i></button>
-            <?php endif ?>
         </div>
         <?php endif ?>
         <p id="aviso-pastas" class="aviso-pastas" role="status"></p>
-        <?php if (!empty($consultaReal)): ?>
             <div class="grupo-explorador caixas-explorador">
                 <a class="item-explorador<?= $caixaAtual === 'arquivados' ? ' selecionado' : '' ?>" <?= $caixaAtual === 'arquivados' ? 'aria-current="page"' : '' ?> href="<?= esc($enderecoCaixas . '?caixa=arquivados', 'attr') ?>"><i class="fa-solid fa-box-archive" aria-hidden="true"></i><span>Arquivados</span></a>
                 <?php if ($administradorSimulado): ?>
                     <a class="item-explorador<?= $caixaAtual === 'lixeira' ? ' selecionado' : '' ?>" <?= $caixaAtual === 'lixeira' ? 'aria-current="page"' : '' ?> href="<?= esc($enderecoCaixas . '?caixa=lixeira', 'attr') ?>"><i class="fa-regular fa-trash-can" aria-hidden="true"></i><span>Lixeira</span></a>
                 <?php endif ?>
             </div>
-        <?php endif ?>
     </nav>
     <div id="redimensionar-explorador" class="redimensionar-explorador" role="separator" tabindex="0"
          aria-label="Largura do Explorador" aria-orientation="vertical" aria-controls="arvore-explorador"
@@ -57,12 +45,12 @@
     <span class="progresso-desfazer" aria-hidden="true"></span>
 </div>
 
-<!-- O modelo é clonado para cada pasta, inclusive as subpastas criadas na prévia. -->
+<!-- O modelo é clonado para cada pasta e subpasta. -->
 <template id="modelo-pasta">
     <li class="no-pasta">
         <div class="linha-pasta">
             <button type="button" class="controle-pasta expandir-pasta" aria-expanded="false" hidden><i class="fa-solid fa-chevron-right" aria-hidden="true"></i></button>
-            <button type="button" class="item-explorador nome-pasta" draggable="true"><i class="fa-regular fa-folder" aria-hidden="true"></i><span><span class="rotulo-pasta"></span><?php if (!empty($consultaReal)): ?> <small class="contagem-pasta" aria-hidden="true"></small><?php endif ?></span></button>
+            <button type="button" class="item-explorador nome-pasta" draggable="true"><i class="fa-regular fa-folder" aria-hidden="true"></i><span><span class="rotulo-pasta"></span> <small class="contagem-pasta" aria-hidden="true"></small></span></button>
             <button type="button" class="controle-pasta abrir-acoes-pasta"><i class="fa-solid fa-ellipsis" aria-hidden="true"></i></button>
             <div class="acoes-consulta acoes-pasta" popover>
                 <button type="button" data-acao-pasta="subpasta">Criar subpasta</button>
@@ -73,38 +61,26 @@
             </div>
         </div>
         <ul class="filhas-pasta" hidden></ul>
-        <?php if (!empty($consultaReal)): ?><ul class="processos-da-pasta" hidden></ul><?php endif ?>
+        <ul class="processos-da-pasta" hidden></ul>
     </li>
 </template>
 
 <dialog id="dialogo-pasta" class="dialogo-colunas dialogo-pasta" aria-labelledby="titulo-pasta"
-    <?php if (!empty($consultaReal)): ?>
         data-endereco="<?= esc(site_url('organizacao/' . $identificadorOrganizacao . '/processos/pastas/acao'), 'attr') ?>"
         data-csrf-nome="<?= esc(csrf_token(), 'attr') ?>" data-csrf-valor="<?= esc(csrf_hash(), 'attr') ?>"
         data-setor="<?= esc($contextoTrabalho['setor']['id'] ?? '', 'attr') ?>"
-    <?php endif ?>>
+    >
     <form method="dialog">
         <h2 id="titulo-pasta"></h2>
         <p id="contexto-pasta"></p>
-        <label id="rotulo-nome-pasta">Nome da pasta<input name="nome" maxlength="<?= empty($consultaReal) ? 100 : 200 ?>"></label>
+        <label id="rotulo-nome-pasta">Nome da pasta<input name="nome" maxlength="200"></label>
         <label id="rotulo-visibilidade-pasta">Visibilidade
             <select name="visibilidade">
-                <?php if (!empty($consultaReal)): ?>
                     <option value="setor">Compartilhada com o setor ativo</option>
                     <option value="privada">Privada · visível ao criador</option>
-                <?php else: ?>
-                <option value="">Privada · somente eu</option>
-                <?php foreach ($unidades as $unidade => $setores): $rotuloUnidade = $rotulosUnidades[$unidade] ?? (string) $unidade; ?>
-                    <optgroup label="<?= esc((string) $unidade, 'attr') ?>">
-                        <?php foreach ($setores as $setor => $nomeSetor): $rotuloSetor = is_string($nomeSetor) ? $nomeSetor : (string) $setor; ?>
-                            <option value="<?= esc($rotuloUnidade . ' / ' . $rotuloSetor, 'attr') ?>">Compartilhar com <?= esc($setor) ?></option>
-                        <?php endforeach ?>
-                    </optgroup>
-                <?php endforeach ?>
-                <?php endif ?>
             </select>
         </label>
-        <?php if (!empty($consultaReal) && $modoSimulacao): ?>
+        <?php if ($simulacaoSemVinculo): ?>
             <label id="rotulo-responsavel-subpasta" hidden>Registrar em nome de
                 <select name="responsavel">
                     <option value="">Selecione um usuário interno</option>

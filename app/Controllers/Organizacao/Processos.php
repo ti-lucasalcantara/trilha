@@ -5,9 +5,9 @@ namespace App\Controllers\Organizacao;
 use App\Controllers\BaseController;
 use App\Libraries\Admin\Cadastros;
 use App\Libraries\Admin\ConsultaEmpresa;
-use App\Libraries\Admin\SimulacaoEmpresa;
 use App\Libraries\Organizacao\AcessoOrganizacao;
 use App\Libraries\Organizacao\AberturaProcesso;
+use App\Libraries\Organizacao\EdicaoProcesso;
 use App\Libraries\Organizacao\ConsultaProcessos;
 use App\Libraries\Organizacao\ContextoSetor;
 use App\Libraries\Organizacao\PoliticaProcesso;
@@ -18,11 +18,11 @@ use DateTimeImmutable;
 use DateTimeZone;
 use CodeIgniter\HTTP\ResponseInterface;
 
-/** Exibe a consulta visual de processos com exemplos inteiramente locais. */
+/** Gerencia os processos da organização acessível na sessão. */
 class Processos extends BaseController
 {
     private const ACOES_POR_CAIXA = [
-        'ativos' => ['mover', 'arquivar', 'excluir'],
+        'ativos' => ['encaminhar', 'mover', 'arquivar', 'excluir'],
         'arquivados' => ['restaurar', 'excluir'],
         'lixeira' => ['restaurar'],
     ];
@@ -38,11 +38,16 @@ class Processos extends BaseController
         $acao = $this->request->getPost('acao');
         $hashes = $this->request->getPost('processos');
         $destino = $this->request->getPost('destino') ?? '';
+        $setoresDestino = $acao === 'encaminhar' ? ($this->request->getPost('setor_destino') ?? []) : [];
+        $manter = $acao === 'encaminhar' ? ($this->request->getPost('manter') ?? []) : [];
         $setor = $layout['contextoTrabalho']['setor']['id'] ?? null;
         if ($setor === null || $this->request->getPost('setor_contexto') !== $setor || !in_array($acao, self::ACOES_POR_CAIXA[$caixa], true)
             || !is_array($hashes) || !$hashes || count($hashes) > 20
             || array_filter($hashes, static fn ($item) => !is_string($item) || !preg_match('/^[a-f0-9]{48}$/D', $item))
-            || ($acao === 'mover' && (!is_string($destino) || !preg_match('/^[1-9][0-9]{0,19}$/D', $destino)))) {
+            || ($acao === 'mover' && (!is_string($destino) || !preg_match('/^[1-9][0-9]{0,19}$/D', $destino)))
+            || ($acao === 'encaminhar' && (!is_array($setoresDestino) || !$setoresDestino
+                || array_filter($setoresDestino, static fn ($id) => !is_string($id) || !preg_match('/^[1-9][0-9]{0,19}$/D', $id))))
+            || !is_array($manter) || array_filter($manter, static fn ($item) => !in_array($item, $hashes, true))) {
             return $voltar->with('erroPastaProcesso', 'Confira a seleção de processos, a ação e o setor ativo.');
         }
         $autor = $vinculo;
@@ -55,10 +60,13 @@ class Processos extends BaseController
             $autor = $responsavel;
         }
         try {
-            $consulta->executarLote(array_values(array_unique($hashes)), $acao, $caixa, $acao === 'mover' ? $destino : '', $vinculo, $autor);
+            $consulta->executarLote(array_values(array_unique($hashes)), $acao, $caixa,
+                match ($acao) { 'mover' => $destino, 'encaminhar' => array_values(array_unique($setoresDestino)), default => '' },
+                $vinculo, $autor, $manter);
             $mensagens = [
                 'mover' => 'Seleção movida para a pasta de destino.', 'arquivar' => 'Seleção enviada para Arquivados.',
                 'excluir' => 'Seleção enviada para a Lixeira.', 'restaurar' => 'Seleção restaurada.',
+                'encaminhar' => count($setoresDestino) === 1 ? 'Processos encaminhados ao setor de destino.' : 'Processos encaminhados aos setores selecionados.',
             ];
             return $voltar->with('sucessoPastaProcesso', $mensagens[$acao]);
         } catch (DomainException $erro) {
@@ -102,16 +110,30 @@ class Processos extends BaseController
     /** Exibe a página de abertura com os cadastros e o setor da organização real. */
     public function novo(string $hash): ResponseInterface
     {
-        if ($hash === '1') throw PageNotFoundException::forPageNotFound();
         [, $layout, $vinculo] = $this->contextoReal($hash);
+        return $this->formularioProcesso($layout, $vinculo);
+    }
+
+    public function editar(string $hash, string $processo): ResponseInterface
+    {
+        [$consulta, $layout, $vinculo] = $this->contextoReal($hash);
+        $edicao = (new EdicaoProcesso(db_connect(), $layout['empresaSimulada'], $consulta))->obter($processo, $vinculo);
+        return $this->formularioProcesso($layout, $vinculo, $edicao);
+    }
+
+    private function formularioProcesso(array $layout, ?string $vinculo, ?array $edicao = null, string $confirmacao = ''): ResponseInterface
+    {
         $banco = db_connect();
         $empresa = $layout['empresaSimulada'];
-        $opcoes = (new AberturaProcesso($banco, $empresa))->opcoes();
+        $opcoes = $edicao === null ? (new AberturaProcesso($banco, $empresa))->opcoes() : [];
         $usuarios = (new ConsultaEmpresa($banco, $empresa))->usuarios();
         return $this->response->setHeader('Cache-Control', 'no-store, private')->setBody(view('organizacao/processos/novo', $layout + $opcoes + [
-            'tituloPagina' => 'Novo processo',
+            'tituloPagina' => $edicao === null ? 'Novo processo' : 'Editar processo',
+            'edicao' => $edicao,
+            'confirmacao' => $confirmacao,
             'responsaveis' => $vinculo === null ? $usuarios : [],
             'pessoasAcesso' => $usuarios,
+            'vinculoLogado' => $vinculo,
             'niveisAcesso' => PoliticaProcesso::NIVEIS,
         ]));
     }
@@ -119,13 +141,27 @@ class Processos extends BaseController
     /** Valida a abertura e redireciona para o processo gravado. */
     public function abrir(string $hash): ResponseInterface
     {
-        if ($hash === '1') throw PageNotFoundException::forPageNotFound();
+        return $this->gravarProcesso($hash);
+    }
+
+    public function atualizar(string $hash, string $processo): ResponseInterface
+    {
+        return $this->gravarProcesso($hash, $processo);
+    }
+
+    private function gravarProcesso(string $hash, ?string $processoEditado = null): ResponseInterface
+    {
         [$consulta, $layout, $vinculo] = $this->contextoReal($hash);
         $leitor = $vinculo;
         $endereco = site_url('organizacao/' . $hash . '/processos');
-        $voltar = redirect()->to($endereco . '/novo', 303)->withCookies();
+        $banco = db_connect();
+        $empresa = $layout['empresaSimulada'];
+        $edicao = $processoEditado === null ? null : new EdicaoProcesso($banco, $empresa, $consulta);
+        $edicaoAjax = $edicao !== null && $this->request->isAJAX();
+        if ($edicao !== null) $edicao->obter($processoEditado, $leitor);
+        $voltar = redirect()->to($endereco . ($edicao === null ? '/novo' : '/' . $processoEditado . '/editar'), 303)->withCookies();
         $dados = [];
-        foreach (['tipo', 'situacao', 'assunto', 'descricao', 'setor_contexto', 'responsavel', 'acesso'] as $campo) {
+        foreach (['tipo', 'assunto', 'descricao', 'descricao_formatada', 'setor_contexto', 'responsavel', 'acesso', 'revisao'] as $campo) {
             $valor = $this->request->getPost($campo);
             $dados[$campo] = is_string($valor) ? trim($valor) : '';
         }
@@ -134,23 +170,31 @@ class Processos extends BaseController
             if (!$setor || $setor['id'] !== $dados['setor_contexto']) {
                 throw new DomainException('O setor ativo mudou. Confira a origem do processo e tente novamente.');
             }
-            if (!preg_match('/^[1-9][0-9]{0,19}$/D', $dados['tipo']) || !preg_match('/^[1-9][0-9]{0,19}$/D', $dados['situacao'])) {
-                throw new DomainException('Selecione o tipo e a situação inicial.');
+            if ($edicao === null && !preg_match('/^[1-9][0-9]{0,19}$/D', $dados['tipo'])) {
+                throw new DomainException('Selecione o tipo de processo.');
             }
-            if ($dados['assunto'] === '' || mb_strlen($dados['assunto']) > 500 || strlen($dados['descricao']) > 65535) {
-                throw new DomainException('Informe um assunto com até 500 caracteres e confira o tamanho da descrição.');
+            if ($dados['assunto'] === '' || mb_strlen($dados['assunto']) > 500) {
+                throw new DomainException('Informe um assunto com até 500 caracteres.');
             }
-            $banco = db_connect();
-            $empresa = $layout['empresaSimulada'];
+            if (strlen($dados['descricao']) > 65535 || strlen($dados['descricao_formatada']) > 65535) {
+                throw new DomainException('A descrição excede o tamanho permitido.');
+            }
             $usuarios = array_column((new ConsultaEmpresa($banco, $empresa))->usuarios(), null, 'vinculo_id');
             if (!isset(PoliticaProcesso::NIVEIS[$dados['acesso']])) throw new DomainException('Selecione o nível de acesso.');
+            if ($vinculo === null) {
+                if (!isset($usuarios[$dados['responsavel']])) {
+                    throw new DomainException('Selecione um usuário interno ativo para registrar a abertura.');
+                }
+                $vinculo = $dados['responsavel'];
+            }
             $dados['autorizados'] = [];
+            $permitidos = [];
             if ($dados['acesso'] !== 'interno') {
                 $restrito = $dados['acesso'] === 'restrito';
-                $selecionados = $this->request->getPost($restrito ? 'setores_autorizados' : 'pessoas_autorizadas');
+                $selecionados = $this->request->getPost($restrito ? 'setores_autorizados' : 'pessoas_autorizadas') ?? [];
                 $permitidos = $restrito ? $layout['contextoTrabalho']['setores'] : $usuarios;
-                if (!is_array($selecionados) || !$selecionados) {
-                    throw new DomainException($restrito ? 'Selecione pelo menos um setor autorizado.' : 'Selecione pelo menos uma pessoa autorizada.');
+                if (!is_array($selecionados)) {
+                    throw new DomainException('Confira as autorizações selecionadas para esta organização.');
                 }
                 foreach ($selecionados as $selecionado) {
                     if (!is_string($selecionado) || !isset($permitidos[$selecionado])) {
@@ -158,22 +202,41 @@ class Processos extends BaseController
                     }
                     $dados['autorizados'][$selecionado] = $selecionado;
                 }
+                $autorizadoPadrao = $restrito ? $setor['id'] : $vinculo;
+                $dados['autorizados'][$autorizadoPadrao] = $autorizadoPadrao;
             }
-            if ($vinculo === null) {
-                if (!isset($usuarios[$dados['responsavel']])) {
-                    throw new DomainException('Selecione um usuário interno ativo para registrar a abertura.');
+            if ($edicao !== null) {
+                $edicaoAtual = $edicao->salvar($processoEditado, $leitor, $vinculo, $dados, $permitidos);
+                $mensagem = $edicaoAtual ? 'Alterações salvas.' : 'Alterações salvas. O processo não está mais disponível para edição neste contexto.';
+                if ($edicaoAjax) {
+                    return $this->response->setJSON([
+                        'mensagem' => $mensagem, 'revisao' => $edicaoAtual['revisao'] ?? null, 'csrf' => csrf_hash(),
+                    ]);
                 }
-                $vinculo = $dados['responsavel'];
+                return $edicaoAtual
+                    ? $this->formularioProcesso($layout, $leitor, $edicaoAtual, $mensagem)
+                    : $this->response->setContentType('text/plain')->setBody($mensagem);
             }
             $ano = (int) (new DateTimeImmutable('now', new DateTimeZone($layout['fusoOrganizacao'])))->format('Y');
             $processo = (new AberturaProcesso($banco, $empresa))->abrir($dados, $setor, $vinculo, $ano);
             $podeConsultar = $leitor === null || $consulta->listar($leitor, $processo, true);
+            $mensagem = $podeConsultar ? 'Processo aberto com sucesso.' : 'Processo aberto. A consulta está disponível às pessoas autorizadas.';
             return redirect()->to($podeConsultar ? $endereco . '/' . $processo : $endereco, 303)->withCookies()
-                ->with('processoAberto', $podeConsultar ? 'Processo aberto com sucesso.' : 'Processo aberto. A consulta está disponível às pessoas autorizadas.');
+                ->with('processoAberto', $mensagem);
         } catch (DomainException $erro) {
+            if ($edicaoAjax) {
+                $alterado = $erro->getMessage() === EdicaoProcesso::ERRO_REVISAO;
+                return $this->response->setStatusCode($alterado ? 409 : 422)->setJSON(['erro' => $erro->getMessage(), 'csrf' => csrf_hash()]);
+            }
+            if ($edicao !== null && $erro->getMessage() === EdicaoProcesso::ERRO_REVISAO) {
+                return $voltar->with('erroAbertura', $erro->getMessage());
+            }
             return $voltar->withInput()->with('erroAbertura', $erro->getMessage());
         } catch (DatabaseException $erro) {
-            log_message('error', 'Falha ao abrir processo: {mensagem}', ['mensagem' => $erro->getMessage()]);
+            log_message('error', 'Falha ao gravar processo: {mensagem}', ['mensagem' => $erro->getMessage()]);
+            if ($edicaoAjax) {
+                return $this->response->setStatusCode(500)->setJSON(['erro' => 'Não foi possível gravar o processo. Tente novamente.', 'csrf' => csrf_hash()]);
+            }
             return $voltar->withInput()->with('erroAbertura', 'Não foi possível gravar o processo. Tente novamente.');
         }
     }
@@ -211,75 +274,21 @@ class Processos extends BaseController
         }
     }
 
-    /** Prepara a organização demonstrativa e as opções de navegação e filtragem. */
-    public function exibir(string $identificadorOrganizacao): ResponseInterface
-    {
-        if ($identificadorOrganizacao !== '1') {
-            return $this->exibirReais($identificadorOrganizacao);
-        }
-        helper('url');
-        $processos = $this->obterProcessosDemonstrativos();
-        $opcoes = [];
-        foreach (['tipo', 'situacao', 'unidade', 'setor', 'responsavel', 'acesso', 'etiqueta'] as $campo) {
-            $opcoes[$campo] = array_values(array_unique(array_column($processos, $campo)));
-            sort($opcoes[$campo]);
-        }
-        $unidades = [];
-        $pastas = [];
-        foreach ($processos as $processo) {
-            $unidades[$processo['unidade']][$processo['setor']] = true;
-            $pastas[$processo['grupoPasta']][$processo['pasta']] = true;
-        }
-
-        return $this->response->setHeader('Cache-Control', 'no-store, private')->setBody(view('organizacao/processos', [
-            'tituloPagina' => 'Processos', 'paginaAtiva' => 'processos',
-            'identificadorOrganizacao' => $identificadorOrganizacao,
-            'nomeOrganizacao' => 'Empresa Horizonte', 'nomeUsuario' => 'Lucas',
-            'processos' => $processos, 'opcoes' => $opcoes, 'unidades' => $unidades, 'pastas' => $pastas,
-        ]));
-    }
-
-    /** Abre um exemplo pelo identificador provisório, que futuramente será um hash. */
     public function visualizar(string $identificadorOrganizacao, string $identificadorProcesso): ResponseInterface
     {
-        if ($identificadorOrganizacao !== '1') {
-            [$consulta, $layout, $vinculo] = $this->contextoReal($identificadorOrganizacao, false);
-            if (!preg_match('/^[a-f0-9]{48}$/D', $identificadorProcesso)) throw PageNotFoundException::forPageNotFound();
-            $processo = $consulta->listar($vinculo, $identificadorProcesso, true)[0] ?? null;
-            if (!$processo) throw PageNotFoundException::forPageNotFound();
-            $documentos = $consulta->documentos((string) $processo['id'], $vinculo);
-            return $this->response->setHeader('Cache-Control', 'no-store, private')->setBody(view('organizacao/processo', $layout + [
-                'tituloPagina' => $processo['numero'], 'processo' => $processo,
-                'documentos' => $this->prepararDocumentosReais($documentos, $processo['acesso']),
-                'pdfDisponivel' => false,
-            ]));
-        }
-        $processoSelecionado = null;
-        foreach ($this->obterProcessosDemonstrativos() as $processo) {
-            if ((string) $processo['id'] === $identificadorProcesso) {
-                $processoSelecionado = $processo;
-                break;
-            }
-        }
-        if ($processoSelecionado === null) {
-            throw PageNotFoundException::forPageNotFound();
-        }
-        helper('url');
-        $pdfDisponivel = is_file(FCPATH . 'pdf/teste.pdf');
-
-        return $this->response->setHeader('Cache-Control', 'no-store, private')->setBody(view('organizacao/processo', [
-            'tituloPagina' => $processoSelecionado['numero'], 'paginaAtiva' => 'processos',
-            'identificadorOrganizacao' => $identificadorOrganizacao,
-            'nomeOrganizacao' => 'Empresa Horizonte', 'nomeUsuario' => 'Lucas',
-            'processo' => $processoSelecionado,
-            'documentos' => $this->prepararFormatosDocumentos($this->obterDocumentosDemonstrativos($processoSelecionado)),
-            'pdfDisponivel' => $pdfDisponivel,
-            'enderecoPdf' => base_url('pdf/teste.pdf'),
+        [$consulta, $layout, $vinculo] = $this->contextoReal($identificadorOrganizacao, false);
+        if (!preg_match('/^[a-f0-9]{48}$/D', $identificadorProcesso)) throw PageNotFoundException::forPageNotFound();
+        $processo = $consulta->listar($vinculo, $identificadorProcesso, true)[0] ?? null;
+        if (!$processo) throw PageNotFoundException::forPageNotFound();
+        $documentos = $consulta->documentos((string) $processo['id'], $vinculo);
+        return $this->response->setHeader('Cache-Control', 'no-store, private')->setBody(view('organizacao/processo', $layout + [
+            'tituloPagina' => $processo['numero'], 'processo' => $processo,
+            'documentos' => $this->prepararDocumentosReais($documentos, $processo['acesso']),
         ]));
     }
 
     /** Usa os componentes aprovados do explorador com registros do banco. */
-    private function exibirReais(string $hash): ResponseInterface
+    public function exibir(string $hash): ResponseInterface
     {
         [$consulta, $layout, $vinculo] = $this->contextoReal($hash, false);
         $caixa = $this->request->getGet('caixa');
@@ -430,25 +439,25 @@ class Processos extends BaseController
     {
         helper(['url', 'form']);
         $banco = db_connect();
-        $simulado = (session()->get(SimulacaoEmpresa::SESSAO)['hash'] ?? null) === $hash;
-        $contexto = $simulado
-            ? SimulacaoEmpresa::contexto($this->request, $hash, true)
-            : (new AcessoOrganizacao($banco))->contexto($hash, $exigirAdministrador);
+        $acesso = new AcessoOrganizacao($banco);
+        $contexto = $acesso->contexto($hash, $exigirAdministrador);
+        $vinculo = $contexto['vinculo'] !== null ? (string) $contexto['vinculo'] : null;
         $empresaId = (string) $contexto['empresa'];
         $empresa = (new Cadastros($banco))->obter('clientes', $empresaId);
         if (!hash_equals($empresa['hash_publico'], $hash)) throw PageNotFoundException::forPageNotFound();
 
-        $administrador = $simulado || (bool) $contexto['fundador'];
+        $administrador = (bool) $contexto['fundador'];
         $contextoTrabalho = (new ContextoSetor($banco, $empresaId, $administrador ? null : (string) $contexto['vinculo']))->obter();
         return [new ConsultaProcessos($banco, $empresaId, $contextoTrabalho['setor']['id'] ?? ''), [
             'paginaAtiva' => 'processos', 'identificadorOrganizacao' => $hash,
-            'nomeOrganizacao' => $empresa['nome'], 'nomeUsuario' => $simulado ? 'Administrador da organização' : $contexto['usuario'],
-            'modoSimulacao' => $simulado, 'contextoEmpresaReal' => !$simulado,
-            'administradorSimulado' => $administrador, 'empresaSimulada' => $empresaId, 'consultaReal' => true,
-            'consultasPermitidas' => $administrador ? [] : (new AcessoOrganizacao($banco))->consultas($contexto),
+            'nomeOrganizacao' => $empresa['nome'], 'nomeUsuario' => $contexto['usuario'],
+            'usuarioTemAvatar' => !empty($contexto['tem_avatar']),
+            'modoSimulacao' => $contexto['simulacao'], 'simulacaoSemVinculo' => $vinculo === null, 'vinculoPreferencias' => $vinculo,
+            'administradorSimulado' => $administrador, 'empresaSimulada' => $empresaId,
+            'consultasPermitidas' => $administrador ? [] : $acesso->consultas($contexto),
             'contextoTrabalho' => $contextoTrabalho,
             'fusoOrganizacao' => $empresa['fuso_horario'],
-        ], $simulado ? null : (string) $contexto['vinculo']];
+        ], $vinculo];
     }
 
     /** Adapta os metadados reais ao painel de documentos, sem expor chaves de armazenamento. */
@@ -467,76 +476,5 @@ class Processos extends BaseController
                 'versao' => (string) ($documento['numero_versao'] ?? '—'), 'descricao' => '',
             ];
         }, $documentos);
-    }
-
-    /** Identifica os formatos originais ilustrativos, mantendo o mesmo PDF na prévia. */
-    private function prepararFormatosDocumentos(array $documentos): array
-    {
-        $formatos = ['pdf', 'xlsx', 'jpg', 'pdf', 'docx'];
-        foreach ($documentos as $indice => &$documento) {
-            $documento['formato'] = $formatos[$indice];
-            $documento['nomeArquivo'] = $documento['titulo'] . '.' . $documento['formato'];
-        }
-        unset($documento);
-        return $documentos;
-    }
-
-    /** Fornece documentos fictícios que compartilham o PDF disponibilizado pelo usuário. */
-    private function obterDocumentosDemonstrativos(array $processo): array
-    {
-        return [
-            ['id' => '1', 'numero' => 'DOC-0001/2026', 'titulo' => 'Documento de abertura', 'tipo' => 'Solicitação', 'autor' => $processo['responsavel'], 'setor' => $processo['setor'], 'data' => '02/11/2026 · 09:15', 'situacao' => 'Assinado', 'cor' => 'verde', 'acesso' => 'Interno', 'versao' => '1', 'descricao' => 'Apresentação do assunto e da necessidade que originou o processo.'],
-            ['id' => '2', 'numero' => 'DOC-0002/2026', 'titulo' => 'Documentação complementar', 'tipo' => 'Documento externo', 'autor' => $processo['responsavel'], 'setor' => $processo['setor'], 'data' => '02/11/2026 · 10:20', 'situacao' => 'Anexado', 'cor' => 'azul', 'acesso' => 'Interno', 'versao' => '1', 'descricao' => 'Informações complementares enviadas para instruir a análise.'],
-            ['id' => '3', 'numero' => 'DOC-0003/2026', 'titulo' => 'Anexo de referência', 'tipo' => 'Anexo', 'autor' => 'Mariana Costa', 'setor' => 'Financeiro', 'data' => '02/11/2026 · 11:05', 'situacao' => 'Anexado', 'cor' => 'azul', 'acesso' => 'Restrito por setor', 'versao' => '1', 'descricao' => 'Material de apoio e referência para os setores envolvidos.'],
-            ['id' => '4', 'numero' => 'DOC-0004/2026', 'titulo' => 'Despacho de análise', 'tipo' => 'Despacho', 'autor' => 'Lucas', 'setor' => 'Administrativo', 'data' => '02/11/2026 · 14:30', 'situacao' => 'Aguardando assinatura', 'cor' => 'laranja', 'acesso' => 'Interno', 'versao' => '2', 'descricao' => 'Registro da análise e das providências propostas pelo setor.'],
-            ['id' => '5', 'numero' => 'DOC-0005/2026', 'titulo' => 'Parecer do setor', 'tipo' => 'Parecer', 'autor' => 'Beatriz Alves', 'setor' => 'Jurídico', 'data' => '02/11/2026 · 16:10', 'situacao' => 'Em elaboração', 'cor' => 'roxo', 'acesso' => 'Confidencial', 'versao' => '1', 'descricao' => 'Manifestação técnica demonstrativa sobre os documentos do processo.'],
-        ];
-    }
-
-    /** Monta cenários fictícios suficientes para avaliar filtros e várias páginas. */
-    private function obterProcessosDemonstrativos(): array
-    {
-        $exemplos = [
-            ['COMPRAS-0008/2026', 'Aquisição de equipamentos para a equipe', 'Compras', 'Matriz', 'Financeiro', 'Mariana Costa', 'Em análise', 'Interno', 'Horizonte Tecnologia', 'Equipamentos', 'Administrativo', 'Compras'],
-            ['ADM-0012/2026', 'Admissão de novo colaborador', 'Admissão', 'Matriz', 'Recursos Humanos', 'Ana Souza', 'Em andamento', 'Confidencial', 'João Martins', 'Pessoas', 'Pessoas', 'Admissões'],
-            ['COMPRAS-0007/2026', 'Renovação de licenças de software', 'Compras', 'Matriz', 'Tecnologia', 'Pedro Lima', 'Em análise', 'Restrito por setor', 'Equipe de Tecnologia', 'Tecnologia', 'Administrativo', 'Compras'],
-            ['CONTRATOS-0003/2026', 'Revisão do contrato de manutenção', 'Contratos', 'Matriz', 'Jurídico', 'Beatriz Alves', 'Em andamento', 'Restrito por setor', 'Oficina Central', 'Manutenção', 'Administrativo', 'Contratos'],
-            ['COMPRAS-0009/2026', 'Materiais para a nova unidade', 'Compras', 'Filial Centro', 'Operações', 'Rafael Santos', 'Aberto', 'Interno', 'Equipe de Operações', 'Nova unidade', 'Administrativo', 'Compras'],
-            ['ADM-0011/2026', 'Atualização de documentos admissionais', 'Admissão', 'Matriz', 'Recursos Humanos', 'Ana Souza', 'Em análise', 'Confidencial', 'Carla Oliveira', 'Pessoas', 'Pessoas', 'Admissões'],
-            ['CONTRATOS-0004/2026', 'Prestação de serviços de limpeza', 'Contratos', 'Filial Centro', 'Operações', 'Rafael Santos', 'Concluído', 'Interno', 'Limpeza Exemplo', 'Serviços', 'Administrativo', 'Contratos'],
-            ['INTERNO-0001/2026', 'Organização do arquivo administrativo', 'Administrativo', 'Matriz', 'Administrativo', 'Lucas', 'Aberto', 'Interno', 'Equipe Administrativa', 'Organização', 'Administrativo', 'Rotinas internas'],
-            ['COMPRAS-0010/2026', 'Compra de cadeiras ergonômicas', 'Compras', 'Matriz', 'Administrativo', 'Lucas', 'Em andamento', 'Interno', 'Equipe Administrativa', 'Equipamentos', 'Administrativo', 'Compras'],
-            ['ADM-0013/2026', 'Admissão de assistente financeiro', 'Admissão', 'Matriz', 'Recursos Humanos', 'Ana Souza', 'Aberto', 'Confidencial', 'Paula Ribeiro', 'Pessoas', 'Pessoas', 'Admissões'],
-            ['CONTRATOS-0005/2026', 'Aditivo do serviço de internet', 'Contratos', 'Matriz', 'Tecnologia', 'Pedro Lima', 'Em análise', 'Restrito por setor', 'Provedor Exemplo', 'Tecnologia', 'Administrativo', 'Contratos'],
-            ['INTERNO-0002/2026', 'Atualização do cadastro de fornecedores', 'Administrativo', 'Matriz', 'Financeiro', 'Mariana Costa', 'Concluído', 'Interno', 'Equipe Financeira', 'Cadastro', 'Administrativo', 'Rotinas internas'],
-            ['COMPRAS-0011/2026', 'Reposição de materiais de escritório', 'Compras', 'Filial Centro', 'Operações', 'Rafael Santos', 'Concluído', 'Interno', 'Papelaria Exemplo', 'Materiais', 'Administrativo', 'Compras'],
-            ['ADM-0014/2026', 'Admissão de analista de suporte', 'Admissão', 'Matriz', 'Recursos Humanos', 'Ana Souza', 'Em andamento', 'Confidencial', 'André Ferreira', 'Pessoas', 'Pessoas', 'Admissões'],
-            ['CONTRATOS-0006/2026', 'Revisão do contrato de locação', 'Contratos', 'Matriz', 'Jurídico', 'Beatriz Alves', 'Suspenso', 'Restrito por setor', 'Imobiliária Exemplo', 'Locação', 'Administrativo', 'Contratos'],
-            ['INTERNO-0003/2026', 'Planejamento da mudança de setor', 'Administrativo', 'Filial Centro', 'Operações', 'Rafael Santos', 'Em análise', 'Interno', 'Equipe de Operações', 'Nova unidade', 'Administrativo', 'Rotinas internas'],
-            ['COMPRAS-0012/2026', 'Aquisição de ferramentas de manutenção', 'Compras', 'Filial Centro', 'Operações', 'Rafael Santos', 'Aberto', 'Interno', 'Manutenção Exemplo', 'Manutenção', 'Administrativo', 'Compras'],
-            ['ADM-0015/2026', 'Integração documental de colaborador', 'Admissão', 'Matriz', 'Recursos Humanos', 'Ana Souza', 'Concluído', 'Confidencial', 'Fernanda Alves', 'Pessoas', 'Pessoas', 'Admissões'],
-            ['CONTRATOS-0007/2026', 'Serviço de armazenamento documental', 'Contratos', 'Matriz', 'Jurídico', 'Beatriz Alves', 'Aberto', 'Restrito por setor', 'Arquivo Exemplo', 'Serviços', 'Administrativo', 'Contratos'],
-            ['INTERNO-0004/2026', 'Revisão das orientações administrativas', 'Administrativo', 'Matriz', 'Administrativo', 'Lucas', 'Em andamento', 'Interno', 'Equipe Administrativa', 'Organização', 'Administrativo', 'Rotinas internas'],
-            ['COMPRAS-0013/2026', 'Contratação de equipamento de impressão', 'Compras', 'Matriz', 'Financeiro', 'Mariana Costa', 'Suspenso', 'Interno', 'Impressão Exemplo', 'Equipamentos', 'Administrativo', 'Compras'],
-            ['ADM-0016/2026', 'Admissão de auxiliar de operações', 'Admissão', 'Filial Centro', 'Operações', 'Rafael Santos', 'Aberto', 'Confidencial', 'Diego Santos', 'Pessoas', 'Pessoas', 'Admissões'],
-            ['CONTRATOS-0008/2026', 'Encerramento do contrato de consultoria', 'Contratos', 'Matriz', 'Jurídico', 'Beatriz Alves', 'Concluído', 'Restrito por setor', 'Consultoria Exemplo', 'Serviços', 'Administrativo', 'Contratos'],
-            ['INTERNO-0005/2026', 'Conferência dos inventários das unidades', 'Administrativo', 'Matriz', 'Administrativo', 'Lucas', 'Em análise', 'Interno', 'Equipes das Unidades', 'Organização', 'Administrativo', 'Rotinas internas'],
-        ];
-        $processos = [];
-        foreach ($exemplos as $indice => $exemplo) {
-            [$numero, $assunto, $tipo, $unidade, $setor, $responsavel, $situacao, $acesso, $interessado, $etiqueta, $grupoPasta, $pasta] = $exemplo;
-            $processos[] = [
-                'id' => $indice + 1, 'numero' => $numero, 'assunto' => $assunto, 'tipo' => $tipo,
-                'unidade' => $unidade, 'setor' => $setor, 'responsavel' => $responsavel,
-                'situacao' => $situacao, 'acesso' => $acesso, 'interessado' => $interessado,
-                'etiqueta' => $etiqueta, 'grupoPasta' => $grupoPasta, 'pasta' => $pasta,
-                'abertura' => '2026-10-' . str_pad((string) (28 - $indice), 2, '0', STR_PAD_LEFT),
-                'atualizacao' => '2026-11-02 ' . str_pad((string) (17 - intdiv($indice, 2)), 2, '0', STR_PAD_LEFT) . ':' . ($indice % 2 === 0 ? '40' : '15'),
-                'prazo' => $situacao === 'Concluído' ? '' : '2026-11-' . str_pad((string) (3 + $indice), 2, '0', STR_PAD_LEFT),
-                'destinos' => $indice % 4 === 0 ? ['Administrativo', 'Financeiro', 'Jurídico'] : [$setor],
-                'acompanhado' => in_array($indice, [0, 3, 8, 14, 20], true),
-            ];
-        }
-        return $processos;
     }
 }

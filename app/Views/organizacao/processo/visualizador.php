@@ -26,26 +26,14 @@
                     <button type="button" class="opcao-menu" data-acao="versoes" data-ambito="documento"><i class="fa-solid fa-code-branch" aria-hidden="true"></i>Versões do documento</button>
                     <button type="button" class="opcao-menu" data-acao="solicitar" data-ambito="documento"><i class="fa-regular fa-paper-plane" aria-hidden="true"></i>Solicitar assinatura</button>
                     <button type="button" class="opcao-menu" data-acao="acesso" data-ambito="documento"><i class="fa-solid fa-shield-halved" aria-hidden="true"></i>Nível de acesso</button>
-                    <?php if ($pdfDisponivel): ?>
-                        <a class="opcao-menu" href="<?= esc($enderecoPdf, 'attr') ?>" target="_blank" rel="noopener noreferrer"><i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i>Abrir PDF</a>
-                    <?php endif ?>
                     <button type="button" class="opcao-menu" data-acao="remover" data-ambito="documento"><i class="fa-regular fa-trash-can" aria-hidden="true"></i>Remover documento</button>
                 </div>
             </details>
-            <?php if ($pdfDisponivel): ?>
-                <a class="acao-documento acao-icone" href="<?= esc($enderecoPdf, 'attr') ?>" download="documento-demonstrativo.pdf" aria-label="Baixar PDF" title="Baixar PDF"><i class="fa-solid fa-download" aria-hidden="true"></i></a>
-            <?php endif ?>
             <button type="button" id="ampliar-visualizador" class="acao-documento acao-icone" aria-label="Ampliar visualizador" title="Ampliar visualizador" aria-pressed="false"><i class="fa-solid fa-expand" aria-hidden="true"></i></button>
         </div>
     </header>
     <div class="moldura-pdf">
-        <?php if ($pdfDisponivel): ?>
-            <iframe id="visualizador-pdf" src="<?= esc($enderecoPdf . '#page=1&view=FitH&navpanes=0', 'attr') ?>" title="PDF — <?= esc($documentoInicial['nomeArquivo'], 'attr') ?>"></iframe>
-        <?php elseif (!empty($consultaReal)): ?>
-            <div class="pdf-indisponivel" role="status"><i class="fa-regular fa-file-pdf" aria-hidden="true"></i><h3>Pré-visualização indisponível</h3><p>A exibição do arquivo depende da integração com o armazenamento.</p></div>
-        <?php else: ?>
-            <div class="pdf-indisponivel" role="status"><i class="fa-regular fa-file-pdf" aria-hidden="true"></i><h3>PDF de teste ainda não disponível</h3><p>Adicione o arquivo em public/pdf/teste.pdf e atualize a página.</p></div>
-        <?php endif ?>
+        <div class="pdf-indisponivel" role="status"><i class="fa-regular fa-file-pdf" aria-hidden="true"></i><h3>Pré-visualização indisponível</h3><p>A exibição do arquivo depende da integração com o armazenamento.</p></div>
     </div>
     <div class="rodape-visualizador">
         <span id="data-documento-ativo">Incluído em <?= esc($documentoInicial['data']) ?></span>

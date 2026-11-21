@@ -2,35 +2,35 @@
 
 namespace App\Controllers\Organizacao;
 
-use App\Controllers\BaseController;
-use App\Libraries\Admin\EstruturaSimulada as CadastroEstrutura;
-use App\Libraries\Admin\SimulacaoEmpresa;
 use App\Libraries\Organizacao\AcessoOrganizacao;
+use App\Libraries\Organizacao\GestaoEstrutura;
 use CodeIgniter\Database\Exceptions\DatabaseException;
 use CodeIgniter\HTTP\ResponseInterface;
 
-/** Recebe as alterações autorizadas na estrutura durante a simulação local. */
-class EstruturaSimulada extends BaseController
+/** Recebe as alterações de unidades e setores da organização. */
+class Estrutura extends Configuracoes
 {
+    public function exibir(string $hash): ResponseInterface
+    {
+        helper(['url', 'form']);
+        $banco = db_connect();
+        $contexto = (new AcessoOrganizacao($banco))->contexto($hash, true);
+        return $this->renderizarConfiguracao($hash, 'estrutura', 'Estrutura', $contexto, [
+            'configuracoes' => [
+                'dados' => (new GestaoEstrutura($banco, (string) $contexto['empresa']))->dadosConfiguracoes(),
+                'estrutura' => site_url('organizacao/' . $hash . '/estrutura'),
+                'csrfNome' => csrf_token(), 'csrfValor' => csrf_hash(),
+            ],
+        ]);
+    }
+
     /** Valida os campos e usa a empresa da sessão, nunca a empresa enviada pelo formulário. */
     public function salvar(string $hash): ResponseInterface
     {
-        $contexto = SimulacaoEmpresa::contexto($this->request, $hash, true);
-        return $this->gravar($hash, $contexto['empresa']);
-    }
-
-    /** Permite a mesma edição ao fundador autenticado da empresa. */
-    public function salvarAutenticada(string $hash): ResponseInterface
-    {
         $contexto = (new AcessoOrganizacao(db_connect()))->contexto($hash, true);
-        return $this->gravar($hash, (string) $contexto['empresa']);
-    }
-
-    /** Compartilha a validação entre o acesso real e a simulação local. */
-    private function gravar(string $hash, string $empresa): ResponseInterface
-    {
+        $empresa = (string) $contexto['empresa'];
         helper('url');
-        $voltar = redirect()->to(site_url('organizacao/' . $hash . '/configuracoes') . '#estrutura')->withCookies();
+        $voltar = redirect()->to(site_url('organizacao/' . $hash . '/configuracoes/estrutura'), 303)->withCookies();
         $campos = [];
         foreach (['tabela', 'id', 'nome', 'sigla', 'status', 'unidade'] as $campo) {
             $valor = $this->request->getPost($campo);
@@ -49,7 +49,7 @@ class EstruturaSimulada extends BaseController
         if (!$validacao->run($campos)) return $voltar->with('erroSimulacao', 'Confira o nome, a sigla e a situação do cadastro.');
 
         try {
-            (new CadastroEstrutura(db_connect(), $empresa))->salvar($campos['tabela'], $campos['id'], [
+            (new GestaoEstrutura(db_connect(), $empresa))->salvar($campos['tabela'], $campos['id'], [
                 'nome' => $campos['nome'], 'sigla' => $campos['sigla'] ?: null, 'status' => $campos['status'],
             ], $campos['unidade']);
         } catch (DatabaseException) {

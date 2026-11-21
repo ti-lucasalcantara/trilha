@@ -1,5 +1,4 @@
 <?php
-// Os formatos indicam os arquivos de origem; a prévia continua usando o PDF de teste.
 $iconesFormatos = ['pdf' => 'fa-file-pdf', 'xlsx' => 'fa-file-excel', 'xls' => 'fa-file-excel', 'jpg' => 'fa-file-image', 'png' => 'fa-file-image', 'docx' => 'fa-file-word'];
 ?>
 <aside class="painel-documentos" aria-labelledby="titulo-documentos">
@@ -34,7 +33,7 @@ $iconesFormatos = ['pdf' => 'fa-file-pdf', 'xlsx' => 'fa-file-excel', 'xls' => '
                     <button type="button" class="selecionar-documento" aria-pressed="<?= $indice === 0 ? 'true' : 'false' ?>" aria-controls="area-visualizador" aria-label="Visualizar <?= esc($documento['nomeArquivo'], 'attr') ?>" title="<?= esc($documento['nomeArquivo'], 'attr') ?>">
                         <span class="icone-formato <?= esc($documento['formato'], 'attr') ?>"><i class="fa-regular <?= esc($iconesFormatos[$documento['formato']] ?? 'fa-file', 'attr') ?>" aria-hidden="true"></i></span>
                         <span class="identificacao-arquivo">
-                            <span class="nome-arquivo"><?php if (!empty($consultaReal)): ?><span><?= esc($documento['nomeArquivo']) ?></span><?php else: ?><span><?= esc($documento['titulo']) ?></span><span>.<?= esc($documento['formato']) ?></span><?php endif ?></span>
+                            <span class="nome-arquivo"><span><?= esc($documento['nomeArquivo']) ?></span></span>
                             <span class="inclusao-arquivo"><?= esc($documento['data']) ?></span>
                         </span>
                     </button>

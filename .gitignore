@@ -92,6 +92,11 @@ php_errors.log
 # Composer
 #-------------------------
 vendor/
+!/public/assets/vendor/
+/public/assets/vendor/*
+!/public/assets/vendor/jquery/
+!/public/assets/vendor/select2/
+!/public/assets/vendor/quill/
 
 #-------------------------
 # IDE / Development Files

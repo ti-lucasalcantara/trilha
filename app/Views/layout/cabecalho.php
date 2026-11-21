@@ -1,23 +1,72 @@
-<!-- Mantém a identidade do produto e o contexto da organização sempre visíveis. -->
+<?php if ($modoSimulacao): ?>
+<div class="faixa-simulacao">
+    <div class="limite-pagina">
+        <strong><i class="fa-solid fa-eye" aria-hidden="true"></i> Modo simulação <small><?= $simulacaoSemVinculo ? 'Administrador da organização' : 'Sessão de ' . esc($nomeUsuario) ?></small></strong>
+    </div>
+</div>
+<?php endif ?>
 <header class="cabecalho-aplicacao">
     <div class="limite-pagina linha-cabecalho">
         <div class="identidade-contexto">
             <a class="marca-aplicacao" href="<?= esc(site_url('organizacao/' . $identificadorOrganizacao . '/dashboard'), 'attr') ?>" aria-label="Trilha — caixa de trabalho">
                 <img src="<?= esc(base_url('img/logo.png'), 'attr') ?>" alt="Trilha" width="132" height="46">
             </a>
-            <div class="identificacao-empresa-real contexto-organizacao-cabecalho">
+            <div class="identificacao-empresa-real">
                 <span class="icone-organizacao"><i class="fa-regular fa-building" aria-hidden="true"></i></span>
                 <div>
-                    <div class="nome-empresa-cabecalho"><strong><?= esc($nomeOrganizacao) ?></strong></div>
+                    <div class="nome-empresa-cabecalho">
+                        <strong><?= esc($nomeOrganizacao) ?></strong>
+                        <?php if (!$modoSimulacao): ?>
+                            <?php
+                            $conta = session()->get(\App\Libraries\Organizacao\AcessoOrganizacao::SESSAO);
+                            $organizacoesDisponiveis = is_string($conta) ? (new \App\Libraries\Organizacao\AcessoOrganizacao(db_connect()))->vinculos($conta) : [];
+                            ?>
+                            <?php if (count($organizacoesDisponiveis) > 1): ?>
+                                <details class="menu-suspenso trocar-organizacao-cabecalho">
+                                    <summary class="botao-icone" aria-label="Trocar de organização" title="Trocar de organização"><i class="fa-solid fa-pen" aria-hidden="true"></i></summary>
+                                    <div class="conteudo-menu">
+                                        <span class="rotulo-menu">Suas organizações</span>
+                                        <?php foreach ($organizacoesDisponiveis as $organizacao): ?>
+                                            <?php if ($organizacao['hash'] === $identificadorOrganizacao): ?>
+                                                <span class="opcao-menu selecionada" aria-current="true"><?= esc($organizacao['organizacao']) ?></span>
+                                            <?php else: ?>
+                                                <a class="opcao-menu" href="<?= esc(site_url('organizacao/' . $organizacao['hash'] . '/dashboard'), 'attr') ?>"><?= esc($organizacao['organizacao']) ?></a>
+                                            <?php endif ?>
+                                        <?php endforeach ?>
+                                    </div>
+                                </details>
+                            <?php endif ?>
+                        <?php endif ?>
+                    </div>
                     <?= $this->include('layout/contexto_trabalho') ?>
                 </div>
             </div>
         </div>
-        <div class="ferramentas-cabecalho">
-            <button type="button" class="atalho-pesquisa" data-focar-pesquisa><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><span>Pesquisar nesta página</span><kbd>/</kbd></button>
-            <details class="menu-suspenso menu-notificacoes"><summary class="botao-icone" aria-label="Notificações demonstrativas"><i class="fa-regular fa-bell" aria-hidden="true"></i><span class="ponto-notificacao"></span></summary><div class="conteudo-menu"><span class="rotulo-menu">NOTIFICAÇÕES · EXEMPLOS</span><p class="item-notificacao"><strong>Uma assinatura aguarda você</strong><small>Admissão de novo colaborador · Há 40 min</small></p><p class="item-notificacao"><strong>Novo processo recebido</strong><small>Financeiro · Há 15 min</small></p></div></details>
-            <details class="menu-suspenso menu-usuario"><summary><span class="avatar-usuario">LC</span><span class="nome-usuario"><?= esc($nomeUsuario) ?><small>Área da organização</small></span><i class="fa-solid fa-chevron-down seta-menu" aria-hidden="true"></i></summary><div class="conteudo-menu"><span class="rotulo-menu">MINHA CONTA</span><button type="button" class="opcao-menu" data-aviso="A tela de perfil será construída em uma próxima etapa."><i class="fa-regular fa-user" aria-hidden="true"></i>Meu perfil</button><a class="opcao-menu" href="<?= esc(site_url('login'), 'attr') ?>"><i class="fa-solid fa-arrow-right-from-bracket" aria-hidden="true"></i>Voltar à tela de entrada</a></div></details>
-        </div>
+        <details class="menu-suspenso menu-usuario">
+            <summary>
+                <span class="avatar-usuario" aria-hidden="true">
+                    <?php if (!empty($usuarioTemAvatar)): ?>
+                        <img src="<?= esc(site_url('organizacao/' . $identificadorOrganizacao . '/meu-perfil/foto'), 'attr') ?>" alt="">
+                    <?php else: ?>
+                        <?= esc(mb_strtoupper(mb_substr($nomeUsuario, 0, 1))) ?>
+                    <?php endif ?>
+                </span>
+                <span class="nome-usuario"><?= esc($nomeUsuario) ?></span>
+                <i class="fa-solid fa-chevron-down seta-menu" aria-hidden="true"></i>
+            </summary>
+            <div class="conteudo-menu">
+                <a class="opcao-menu" href="<?= esc(site_url('organizacao/' . $identificadorOrganizacao . '/meu-perfil'), 'attr') ?>"
+                    <?= $paginaAtiva === 'perfil' ? 'aria-current="page"' : '' ?>>
+                    <i class="fa-regular fa-user" aria-hidden="true"></i>Meu Perfil
+                </a>
+                <form method="post" action="<?= esc(site_url($modoSimulacao ? 'admin/clientes/' . $empresaSimulada . '/encerrar-simulacao' : 'sair'), 'attr') ?>">
+                    <?= csrf_field() ?>
+                    <?php if (!$modoSimulacao): ?>
+                        <input type="hidden" name="organizacao" value="<?= esc($identificadorOrganizacao, 'attr') ?>">
+                    <?php endif ?>
+                    <button class="opcao-menu" type="submit"><i class="fa-solid fa-arrow-right-from-bracket" aria-hidden="true"></i>Sair</button>
+                </form>
+            </div>
+        </details>
     </div>
 </header>
-

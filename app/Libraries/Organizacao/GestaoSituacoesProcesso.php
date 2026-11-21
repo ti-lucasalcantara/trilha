@@ -5,6 +5,7 @@ namespace App\Libraries\Organizacao;
 use CodeIgniter\Database\BaseBuilder;
 use CodeIgniter\Database\BaseConnection;
 use DomainException;
+use Throwable;
 
 /** Gerencia as situações de processo no escopo da organização. */
 class GestaoSituacoesProcesso
@@ -31,15 +32,35 @@ class GestaoSituacoesProcesso
             $this->consulta()->insert($dados + ['organizacao_id' => $this->empresa, 'criado_em' => $agora]);
             return;
         }
-        $this->exigirSituacao($id);
-        $this->consulta()->where('id', $id)->update($dados + ['atualizado_em' => $agora]);
+        $this->transacionar(function () use ($id, $dados, $agora): void {
+            $situacao = $this->exigirSituacao($id);
+            if ($situacao['inicial'] && !$dados['ativo']) {
+                throw new DomainException('Defina outra situação inicial antes de inativar esta.');
+            }
+            $this->consulta()->where('id', $id)->update($dados + ['atualizado_em' => $agora]);
+        });
     }
 
     /** As chaves estrangeiras impedem a exclusão se a situação estiver em uso. */
     public function excluir(string $id): void
     {
-        $this->consulta()->where('id', $id)->delete();
-        if (!$this->banco->affectedRows()) throw new DomainException('Situação não encontrada nesta organização.');
+        $this->transacionar(function () use ($id): void {
+            if ($this->exigirSituacao($id)['inicial']) {
+                throw new DomainException('Defina outra situação inicial antes de excluir esta.');
+            }
+            $this->consulta()->where('id', $id)->delete();
+        });
+    }
+
+    public function definirInicial(string $id): void
+    {
+        $this->transacionar(function () use ($id): void {
+            if (!$this->exigirSituacao($id)['ativo']) {
+                throw new DomainException('Selecione uma situação ativa para a abertura.');
+            }
+            $this->consulta()->where('inicial', 1)->update(['inicial' => null]);
+            $this->consulta()->where('id', $id)->update(['inicial' => 1]);
+        });
     }
 
     /** Limita leitura e alteração à empresa da sessão. */
@@ -49,10 +70,29 @@ class GestaoSituacoesProcesso
     }
 
     /** Verifica se o registro pertence à empresa antes de editar. */
-    private function exigirSituacao(string $id): void
+    private function exigirSituacao(string $id): array
     {
-        if (!$this->consulta()->where('id', $id)->countAllResults()) {
+        $situacao = $this->consulta()->where('id', $id)->get()->getRowArray();
+        if (!$situacao) {
             throw new DomainException('Situação não encontrada nesta organização.');
+        }
+        return $situacao;
+    }
+
+    /** Usa a mesma ordem de bloqueio da abertura de processos. */
+    private function transacionar(callable $operacao): void
+    {
+        $this->banco->transException(true);
+        if (!$this->banco->transBegin()) throw new DomainException('Não foi possível iniciar a alteração da situação.');
+        try {
+            $this->banco->query('SELECT id FROM organizacoes WHERE id = ? FOR UPDATE', [$this->empresa]);
+            $operacao();
+            if (!$this->banco->transStatus() || !$this->banco->transCommit()) {
+                throw new DomainException('Não foi possível concluir a alteração da situação.');
+            }
+        } catch (Throwable $erro) {
+            $this->banco->transRollback();
+            throw $erro;
         }
     }
 }

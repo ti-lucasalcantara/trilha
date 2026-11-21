@@ -2,6 +2,7 @@
 
 namespace App\Libraries\Organizacao;
 
+use App\Libraries\Admin\SimulacaoEmpresa;
 use CodeIgniter\Database\BaseConnection;
 use CodeIgniter\Exceptions\PageNotFoundException;
 
@@ -18,7 +19,8 @@ class AcessoOrganizacao
     public function vinculos(string $usuario, ?string $hash = null): array
     {
         $consulta = $this->banco->table('vinculos_organizacao v')
-            ->select('o.id AS empresa, o.hash_publico AS hash, o.nome AS organizacao, u.nome AS usuario, v.id AS vinculo, a.vinculo_id AS fundador')
+            ->select('o.id AS empresa, o.hash_publico AS hash, o.nome AS organizacao, u.id AS usuario_id, u.nome AS usuario, u.email, v.id AS vinculo, a.vinculo_id AS fundador')
+            ->select('u.avatar_jpeg IS NOT NULL AS tem_avatar', false)
             ->join('organizacoes o', 'o.id = v.organizacao_id')
             ->join('usuarios u', 'u.id = v.usuario_id')
             ->join('administradores_organizacao a', 'a.organizacao_id = v.organizacao_id AND a.vinculo_id = v.id', 'left')
@@ -28,13 +30,16 @@ class AcessoOrganizacao
         return $consulta->orderBy('o.nome')->get()->getResultArray();
     }
 
-    /** Exige uma sessão real e valida o administrador pelo vínculo protegido. */
+    /** Resolve a sessão vigente e valida as permissões do vínculo. */
     public function contexto(string $hash, bool $exigirAdministrador = false): array
     {
+        if ((session()->get(SimulacaoEmpresa::SESSAO)['hash'] ?? null) === $hash) {
+            return SimulacaoEmpresa::contexto(service('request'), $hash, $exigirAdministrador);
+        }
         $usuario = session()->get(self::SESSAO);
         $contexto = is_string($usuario) && preg_match('/^[a-f0-9]{48}$/D', $hash) ? ($this->vinculos($usuario, $hash)[0] ?? null) : null;
         if (!$contexto || ($exigirAdministrador && !$contexto['fundador'])) throw PageNotFoundException::forPageNotFound();
-        return $contexto;
+        return $contexto + ['simulacao' => false];
     }
 
     /** Resolve somente permissões concedidas no âmbito da organização inteira. */
