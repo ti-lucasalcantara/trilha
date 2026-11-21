@@ -31,6 +31,14 @@ $routes->post('organizacao/(:segment)/processos/novo', 'Organizacao\Processos::a
 $routes->get('organizacao/(:segment)/processos/(:segment)/editar', 'Organizacao\Processos::editar/$1/$2');
 $routes->post('organizacao/(:segment)/processos/(:segment)/editar', 'Organizacao\Processos::atualizar/$1/$2', ['filter' => 'csrf']);
 $routes->post('organizacao/(:segment)/processos/lote', 'Organizacao\Processos::executarLote/$1', ['filter' => 'csrf']);
+$routes->post('organizacao/(:segment)/processos/(:segment)/documentos', 'Organizacao\Processos::enviarDocumento/$1/$2', ['filter' => 'csrf']);
+$routes->get('organizacao/(:segment)/processos/(:segment)/editor-documento', 'Organizacao\Processos::editorDocumento/$1/$2');
+$routes->post('organizacao/(:segment)/processos/(:segment)/editor-documento', 'Organizacao\Processos::editorDocumento/$1/$2', ['filter' => 'csrf']);
+$routes->get('organizacao/(:segment)/processos/(:segment)/documentos/(:num)/leitura', 'Organizacao\Processos::lerDocumentoEditado/$1/$2/$3');
+$routes->post('organizacao/(:segment)/processos/(:segment)/documentos/(:num)/nome', 'Organizacao\Processos::renomearDocumento/$1/$2/$3', ['filter' => 'csrf']);
+$routes->post('organizacao/(:segment)/processos/(:segment)/documentos/(:num)/exclusao', 'Organizacao\Processos::alterarExclusaoDocumento/$1/$2/$3', ['filter' => 'csrf']);
+$routes->get('organizacao/(:segment)/processos/(:segment)/documentos/(:num)/arquivo', 'Organizacao\Processos::baixarDocumento/$1/$2/$3');
+$routes->get('organizacao/(:segment)/processos/(:segment)/documentos/(:num)/visualizar', 'Organizacao\Processos::baixarDocumento/$1/$2/$3/visualizar');
 $routes->post('organizacao/(:segment)/processos/(:segment)/pasta', 'Organizacao\Processos::moverParaPasta/$1/$2', ['filter' => 'csrf']);
 $routes->post('organizacao/(:segment)/processos/(:segment)/acompanhamento', 'Organizacao\Processos::acompanhar/$1/$2', ['filter' => 'csrf']);
 $routes->post('organizacao/(:segment)/processos/pastas', 'Organizacao\Processos::cadastrarPasta/$1', ['filter' => 'csrf']);
@@ -42,6 +50,8 @@ $routes->get('organizacao/(:segment)/configuracoes/equipe', 'Organizacao\Equipe:
 $routes->get('organizacao/(:segment)/configuracoes/perfis', 'Organizacao\Perfis::exibir/$1');
 $routes->get('organizacao/(:segment)/configuracoes/tipos-processo', 'Organizacao\TiposProcesso::exibir/$1');
 $routes->get('organizacao/(:segment)/configuracoes/situacoes-processo', 'Organizacao\SituacoesProcesso::exibir/$1');
+$routes->get('organizacao/(:segment)/configuracoes/tipos-documento', 'Organizacao\TiposDocumento::exibir/$1');
+$routes->post('organizacao/(:segment)/configuracoes/tipos-documento', 'Organizacao\TiposDocumento::salvar/$1', ['filter' => 'csrf']);
 $routes->post('organizacao/(:segment)/tipos-processo', 'Organizacao\TiposProcesso::salvar/$1', ['filter' => 'csrf']);
 $routes->post('organizacao/(:segment)/tipos-processo/(:num)/excluir', 'Organizacao\TiposProcesso::excluir/$1/$2', ['filter' => 'csrf']);
 $routes->post('organizacao/(:segment)/situacoes-processo', 'Organizacao\SituacoesProcesso::salvar/$1', ['filter' => 'csrf']);

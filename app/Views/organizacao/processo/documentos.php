@@ -3,22 +3,34 @@ $iconesFormatos = ['pdf' => 'fa-file-pdf', 'xlsx' => 'fa-file-excel', 'xls' => '
 ?>
 <aside class="painel-documentos" aria-labelledby="titulo-documentos">
     <div class="topo-documentos">
-        <h2 id="titulo-documentos">Documentos<span><?= esc((string) count($documentos)) ?></span></h2>
+        <h2 id="titulo-documentos">Documentos<span id="quantidade-documentos"><?= esc((string) $quantidadeDocumentosAtivos) ?></span></h2>
         <div class="acoes-lista-documentos">
-            <button type="button" class="acao-documento acao-suave" data-acao="adicionar" data-ambito="processo"><i class="fa-solid fa-plus" aria-hidden="true"></i>Adicionar</button>
-            <button type="button" id="alternar-documentos" class="acao-documento acao-icone" aria-expanded="true" aria-controls="corpo-documentos" aria-label="Recolher lista de documentos"><i class="fa-solid fa-chevron-up" aria-hidden="true"></i></button>
+            <?php if ($administradorSimulado): ?>
+                <button type="button" class="acao-documento acao-suave" id="adicionar-documento" aria-haspopup="dialog" aria-controls="dialogo-adicionar-documento"><i class="fa-solid fa-plus" aria-hidden="true"></i>Adicionar</button>
+            <?php endif ?>
         </div>
     </div>
     <div id="corpo-documentos">
         <label class="pesquisa-documentos"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><span class="visualmente-oculto">Pesquisar documento por nome, formato ou número</span><input type="search" id="pesquisa-documentos" placeholder="Buscar documento…" autocomplete="off"></label>
+        <?php if ($quantidadeDocumentosAtivos < count($documentos)): ?>
+            <label class="filtro-documentos-excluidos"><input type="checkbox" id="mostrar-documentos-excluidos" autocomplete="off"> Mostrar excluídos</label>
+        <?php endif ?>
         <!-- O foco permite rolar a lista pelo teclado sem mover o visualizador. -->
         <div class="lista-documentos" role="region" aria-label="Lista de arquivos do processo" tabindex="0">
-            <?php foreach ($documentos as $indice => $documento): ?>
-            <article class="documento-compacto <?= $indice === 0 ? 'selecionado' : '' ?>"
+            <?php foreach ($documentos as $documento): ?>
+            <?php $selecionado = $documento['id'] === ($documentoAtivo['id'] ?? null); ?>
+            <article class="documento-compacto <?= $selecionado ? 'selecionado' : '' ?> <?= $documento['excluido'] ? 'documento-excluido' : '' ?>"
+                <?= $documento['excluido'] ? 'hidden' : '' ?>
                 data-documento="<?= esc($documento['id'], 'attr') ?>"
+                data-excluido="<?= $documento['excluido'] ? '1' : '0' ?>"
+                data-pode-excluir="<?= $documento['podeExcluir'] ? '1' : '0' ?>"
                 data-numero="<?= esc($documento['numero'], 'attr') ?>"
                 data-titulo="<?= esc($documento['titulo'], 'attr') ?>"
                 data-arquivo="<?= esc($documento['nomeArquivo'], 'attr') ?>"
+                data-download="<?= esc($documento['download'], 'attr') ?>"
+                data-pdf="<?= esc($documento['pdf'], 'attr') ?>"
+                data-leitura="<?= esc($documento['leitura'], 'attr') ?>"
+                data-imagem="<?= esc($documento['imagem'], 'attr') ?>"
                 data-formato="<?= esc($documento['formato'], 'attr') ?>"
                 data-tipo="<?= esc($documento['tipo'], 'attr') ?>"
                 data-autor="<?= esc($documento['autor'], 'attr') ?>"
@@ -30,14 +42,16 @@ $iconesFormatos = ['pdf' => 'fa-file-pdf', 'xlsx' => 'fa-file-excel', 'xls' => '
                 data-descricao="<?= esc($documento['descricao'], 'attr') ?>"
                 data-cor="<?= esc($documento['cor'], 'attr') ?>">
                 <div class="linha-documento">
-                    <button type="button" class="selecionar-documento" aria-pressed="<?= $indice === 0 ? 'true' : 'false' ?>" aria-controls="area-visualizador" aria-label="Visualizar <?= esc($documento['nomeArquivo'], 'attr') ?>" title="<?= esc($documento['nomeArquivo'], 'attr') ?>">
+                    <button type="button" class="selecionar-documento" aria-pressed="<?= $selecionado ? 'true' : 'false' ?>" aria-controls="area-visualizador" aria-label="Visualizar <?= esc($documento['titulo'], 'attr') ?>" title="<?= esc($documento['titulo'], 'attr') ?>">
                         <span class="icone-formato <?= esc($documento['formato'], 'attr') ?>"><i class="fa-regular <?= esc($iconesFormatos[$documento['formato']] ?? 'fa-file', 'attr') ?>" aria-hidden="true"></i></span>
                         <span class="identificacao-arquivo">
-                            <span class="nome-arquivo"><span><?= esc($documento['nomeArquivo']) ?></span></span>
+                            <span class="nome-arquivo"><span><?= esc($documento['titulo']) ?></span></span>
+                            <span class="inclusao-arquivo"><?= esc($documento['tipo'] . ' · ' . $documento['numero']) ?></span>
                             <span class="inclusao-arquivo"><?= esc($documento['data']) ?></span>
+                            <?php if ($documento['excluido']): ?><span class="estado-documento vermelho"><span aria-hidden="true"></span>Excluído</span><?php endif ?>
                         </span>
                     </button>
-                    <button type="button" class="alternar-detalhes-documento" aria-expanded="false" aria-controls="detalhes-documento-<?= esc($documento['id'], 'attr') ?>" aria-label="Expandir detalhes de <?= esc($documento['nomeArquivo'], 'attr') ?>"><i class="fa-solid fa-chevron-right" aria-hidden="true"></i></button>
+                    <button type="button" class="alternar-detalhes-documento" aria-expanded="false" aria-controls="detalhes-documento-<?= esc($documento['id'], 'attr') ?>" aria-label="Expandir detalhes de <?= esc($documento['titulo'], 'attr') ?>"><i class="fa-solid fa-chevron-right" aria-hidden="true"></i></button>
                 </div>
                 <div class="detalhes-documento" id="detalhes-documento-<?= esc($documento['id'], 'attr') ?>" hidden>
                     <p><?= esc($documento['descricao']) ?></p>
@@ -55,10 +69,6 @@ $iconesFormatos = ['pdf' => 'fa-file-pdf', 'xlsx' => 'fa-file-excel', 'xls' => '
             </article>
             <?php endforeach ?>
         </div>
-        <p id="documentos-vazios" class="documentos-vazios" role="status" <?= $documentos ? 'hidden' : '' ?>><?= $documentos ? 'Nenhum documento encontrado. Tente outro termo.' : 'Nenhum documento disponível.' ?></p>
+        <p id="documentos-vazios" class="documentos-vazios" role="status" <?= $quantidadeDocumentosAtivos ? 'hidden' : '' ?>>Nenhum documento disponível.</p>
     </div>
-    <div id="redimensionar-documentos" class="redimensionar-documentos" role="separator" tabindex="0"
-         aria-label="Largura da lista de documentos" aria-orientation="vertical" aria-controls="corpo-documentos"
-         aria-valuemin="220" aria-valuemax="520" aria-valuenow="248"
-         title="Arraste ou use as setas para ajustar a largura"></div>
 </aside>

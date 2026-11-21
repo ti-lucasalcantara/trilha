@@ -12,10 +12,40 @@
 .caminho-processo .voltar-processos { margin-left: auto; color: #6232c5; }
 .cabecalho-processo { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 18px; }
 .cabecalho-processo h1 { font-size: clamp(20px, 2.2vw, 28px); line-height: 1.25; color: #151c34; }
+.caminho-processo a { color: var(--trilha-roxo); }
+.cabecalho-processo > div:first-child { min-width: 0; overflow-wrap: anywhere; }
+.area-organizacao .descricao-cabecalho-processo { margin-top: .5rem; color: var(--trilha-secundario); }
+.descricao-cabecalho-processo > :last-child { margin-bottom: 0; }
+.descricao-processo-texto { white-space: pre-wrap; }
+.cabecalho-processo .resumo-processo { flex-wrap: wrap; }
+#baixar-documento-ativo[hidden] { display: none; }
+
+.dialogo-envio-documento { width: min(640px, calc(100% - 32px)); color: var(--trilha-texto); }
+.dialogo-envio-documento h2 { margin: 0 0 16px; color: var(--trilha-texto); }
+.opcoes-novo-documento { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.opcao-novo-documento {
+    display: grid; gap: .45rem; justify-items: start; padding: 16px;
+    border: 1px solid var(--trilha-borda); border-radius: 9px; text-align: left;
+    color: var(--trilha-texto); background: #fff;
+}
+.opcao-novo-documento i, .area-envio-documento i { color: var(--trilha-roxo); font-size: 22px; }
+.opcao-novo-documento span, .area-envio-documento span { color: var(--trilha-secundario); font-size: 12px; }
+.opcao-novo-documento:hover:enabled, .area-envio-documento.recebendo-arquivo { border-color: var(--trilha-roxo); background: #f5efff; }
+.opcao-novo-documento:disabled, .area-envio-documento:has(input:disabled) { opacity: .55; cursor: default; }
+.area-envio-documento {
+    position: relative; display: grid; justify-items: center; gap: 6px; padding: 24px 16px;
+    border: 1px dashed #a78bd6; border-radius: 9px; background: #faf7ff;
+    text-align: center; overflow-wrap: anywhere; cursor: pointer;
+}
+.area-envio-documento:focus-within { outline: 2px solid var(--trilha-roxo); outline-offset: 3px; }
+#arquivo-envio-documento:empty { display: none; }
+@media (max-width: 540px) {
+    .opcoes-novo-documento { grid-template-columns: minmax(0, 1fr); }
+}
 .resumo-processo { margin-top: 8px; }
 .resumo-processo > span:not(.estado-documento) { display: inline-flex; align-items: center; gap: 6px; }
 .tarefas-processo, .tarefas-documento, .acoes-lista-documentos { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-.tarefas-processo, .tarefas-documento { justify-content: flex-end; }
+.tarefas-processo { justify-content: flex-end; }
 .tarefas-processo { flex-shrink: 0; }
 .acao-processo, .acao-documento {
     display: inline-flex;
@@ -48,17 +78,17 @@ a.acao-documento { color: #151c34; }
 .divisao-processo { display: grid; min-width: 0; }
 .area-visualizador { min-width: 0; }
 .cabecalho-visualizador {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px 14px;
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
     padding: 12px 14px;
     border-bottom: 1px solid #dce0eb;
 }
-.identificacao-documento { flex: 1 1 190px; min-width: 0; }
+.nome-visualizador-documento { display: flex; align-items: center; gap: .4rem; }
+.nome-visualizador-documento .acao-icone { flex-shrink: 0; min-height: 30px; width: 30px; }
+.nome-visualizador-documento [hidden] { display: none; }
 .identificacao-documento h2 { font-size: 17px; color: #151c34; line-height: 1.25; overflow-wrap: anywhere; }
-.resumo-documento-ativo { margin-top: 5px; gap: 5px 8px; font-size: 12px; }
+.resumo-documento-ativo { gap: 5px 10px; font-size: inherit; }
 .estado-documento { display: inline-flex; align-items: center; gap: 5px; border-radius: 5px; padding: 3px 7px; font-size: 11px; }
 .estado-documento > span:first-child { width: 5px; height: 5px; background: currentColor; border-radius: 50%; flex-shrink: 0; }
 .estado-documento.verde { color: #126139; background: #d9f7e6; }
@@ -66,12 +96,23 @@ a.acao-documento { color: #151c34; }
 .estado-documento.roxo { color: #4614b6; background: #ebe0ff; }
 .estado-documento.laranja { color: #784500; background: #ffedc4; }
 .estado-documento.neutro { color: #4d4c63; background: #ececf3; }
+.estado-documento.vermelho { color: #a11b2b; background: #ffe4e8; }
+.tarefas-documento [hidden] { display: none; }
+.tarefas-documento .acao-excluir-documento { color: #a11b2b; background: #fff0f2; border-color: #efb8c0; }
+.tarefas-documento .acao-excluir-documento:hover { color: #fff; background: #a11b2b; border-color: #a11b2b; }
 .moldura-pdf { min-width: 0; background: #eef0f5; }
 .moldura-pdf iframe { display: block; width: 100%; height: clamp(540px, calc(100dvh - 295px), 1100px); border: 0; }
+#visualizador-imagem { display: block; width: 100%; height: clamp(400px, calc(100dvh - 295px), 1000px); object-fit: contain; padding: 12px; }
+#visualizador-imagem[hidden] { display: none; }
+.moldura-pdf [hidden], #visualizador-vazio { display: none; }
+.sem-documento-ativo #visualizador-vazio { display: block; }
+.sem-documento-ativo > .cabecalho-visualizador,
+.sem-documento-ativo > #moldura-documento-ativo,
+.sem-documento-ativo > .rodape-visualizador { display: none; }
 .pdf-indisponivel { min-height: 540px; display: grid; place-content: center; gap: 8px; padding: 24px; text-align: center; color: #526078; }
 .pdf-indisponivel > i { font-size: 28px; }
 .pdf-indisponivel h3 { font-size: 16px; }
-.rodape-visualizador { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 6px; padding: 8px 14px; font-size: 11px; color: #526078; }
+.rodape-visualizador { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px 12px; padding: 8px 14px; font-size: 11px; color: #526078; }
 .nota-leitura { display: flex; gap: 7px; align-items: baseline; font-size: 11px; color: #526078; padding: 9px 2px; }
 .descricao-formatada-processo { display: block; overflow-wrap: anywhere; }
 .descricao-formatada-processo > :last-child { margin-bottom: 0; }

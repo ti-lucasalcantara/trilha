@@ -361,11 +361,13 @@ class ConsultaProcessos
     }
 
     /** Lista documentos do processo sem expor conteúdo ou chaves do armazenamento. */
-    public function documentos(string $processo, ?string $vinculo): array
+    public function documentos(string $processo, ?string $vinculo, ?string $documento = null, bool $incluirConteudo = false): array
     {
-        $consulta = $this->banco->table('documentos d')->select('d.id, d.numero_completo, d.titulo, d.criado_em,
+        $consulta = $this->banco->table('documentos d')->select('d.id, d.origem, d.numero_completo, d.numero_sequencial, d.periodo_numeracao, d.titulo, d.criado_em, d.criado_por, d.excluido_em,
             tipo.nome AS tipo, estado.nome AS situacao, usuario.nome AS autor, setor.nome AS setor, v.numero_versao,
-            COALESCE(original.nome_original, final.nome_original) AS nome_arquivo')
+            COALESCE(original.nome_original, final.nome_original) AS nome_arquivo,
+            COALESCE(original.mime_type, final.mime_type) AS mime_arquivo,
+            COALESCE(original.chave_armazenamento, final.chave_armazenamento) AS chave_arquivo')
             ->join('tipos_documento tipo', 'tipo.organizacao_id = d.organizacao_id AND tipo.id = d.tipo_documento_id')
             ->join('status_documento estado', 'estado.organizacao_id = d.organizacao_id AND estado.id = d.status_id')
             ->join('setores setor', 'setor.organizacao_id = d.organizacao_id AND setor.id = d.setor_origem_id')
@@ -376,6 +378,8 @@ class ConsultaProcessos
             ->join('arquivos final', 'final.organizacao_id = d.organizacao_id AND final.id = v.arquivo_final_id', 'left')
             ->where(['d.organizacao_id' => $this->empresa, 'd.processo_principal_id' => $processo]);
         if ($vinculo !== null) $consulta->where(PoliticaProcesso::condicao($this->banco, 'd', $vinculo, true), null, false);
+        if ($documento !== null) $consulta->where('d.id', $documento);
+        if ($incluirConteudo) $consulta->select('v.conteudo_editor');
         $consulta->select('(SELECT CASE WHEN pa.herda_processo = 1 THEN NULL ELSE pa.nivel END FROM politicas_acesso pa
             WHERE pa.organizacao_id = d.organizacao_id AND pa.documento_id = d.id ORDER BY pa.id DESC LIMIT 1) AS nivel', false);
         return $consulta->orderBy('d.criado_em')->orderBy('d.id')->get()->getResultArray();

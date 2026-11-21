@@ -1,5 +1,5 @@
 /* Mantém a lista com rolagem independente da leitura do PDF. */
-.divisao-processo { grid-template-columns: var(--largura-documentos, clamp(248px, 27%, 390px)) minmax(0, 1fr); align-items: start; }
+.divisao-processo { position: relative; grid-template-columns: var(--largura-documentos, clamp(248px, 27%, 390px)) minmax(0, 1fr); align-items: start; }
 .divisao-processo.leitura-ampliada { grid-template-columns: minmax(0, 1fr); }
 .painel-documentos {
     position: relative;
@@ -14,7 +14,9 @@
 .topo-documentos h2 { display: flex; align-items: center; gap: 6px; font-size: 16px; color: #151c34; }
 .topo-documentos h2 > span { padding: 2px 7px; background: #edf0f6; border-radius: 99px; font-size: 11px; }
 #corpo-documentos { display: flex; flex-direction: column; flex: 1; min-height: 0; }
-#corpo-documentos[hidden], .documentos-vazios[hidden], .documento-compacto[hidden], .detalhes-documento[hidden] { display: none; }
+.filtro-documentos-excluidos { display: flex; align-items: center; gap: 6px; padding: 4px 12px 8px; color: #526078; font-size: 12px; }
+.filtro-documentos-excluidos input { margin: 0; }
+.documentos-vazios[hidden], .documento-compacto[hidden], .detalhes-documento[hidden] { display: none; }
 .pesquisa-documentos { position: relative; display: block; flex-shrink: 0; margin: 0 12px 9px; }
 .pesquisa-documentos > i { position: absolute; top: 11px; left: 10px; color: #526078; pointer-events: none; }
 .pesquisa-documentos input {
@@ -32,6 +34,11 @@
 .documento-compacto { min-width: 0; border: 1px solid transparent; border-bottom-color: #e8eaf1; border-radius: 6px; }
 .documento-compacto:hover { background: #f7f4ff; }
 .documento-compacto.selecionado { background: #eee8ff; border-color: #dfd3f8; }
+.documento-compacto.documento-excluido { background: #fff5f6; border-color: #f2d8dd; }
+.documento-compacto.documento-excluido:hover,
+.documento-compacto.documento-excluido.selecionado { background: #ffe8ec; border-color: #eebcc5; }
+.documento-excluido .nome-arquivo { color: #a11b2b; }
+.documento-excluido .estado-documento { align-self: flex-start; }
 
 /* Exibe a inclusão abaixo do nome e mantém a seta independente da seleção. */
 .linha-documento { display: flex; align-items: center; min-width: 0; }
@@ -49,10 +56,8 @@
     color: #151c34;
     text-align: left;
 }
-.identificacao-arquivo { display: grid; min-width: 0; gap: 2px; }
-.nome-arquivo { display: flex; min-width: 0; white-space: nowrap; font-size: 14px; font-weight: 600; }
-.nome-arquivo > span:first-child { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-.nome-arquivo > span:last-child { flex-shrink: 0; }
+.identificacao-arquivo { display: grid; flex: 1; min-width: 0; gap: 2px; }
+.nome-arquivo { white-space: normal; overflow-wrap: anywhere; font-size: 14px; font-weight: 600; }
 .inclusao-arquivo { font-size: 10px; color: #526078; }
 .icone-formato { display: grid; place-items: center; flex-shrink: 0; width: 24px; height: 28px; border-radius: 5px; font-size: 15px; }
 .icone-formato.pdf { color: #a72942; background: #fbe9ed; }
@@ -71,16 +76,31 @@
 /* Permite ajustar a coluna pela divisória sem interferir na rolagem da lista. */
 .redimensionar-documentos {
     position: absolute;
+    grid-area: 1 / 2;
     z-index: 1;
-    inset: 0 -5px 0 auto;
-    width: 10px;
+    inset: 0 auto 0 -10px;
+    width: 16px;
     cursor: col-resize;
     touch-action: none;
 }
+.redimensionar-documentos > span {
+    position: absolute;
+    top: 58px;
+    left: 1px;
+    display: grid;
+    place-items: center;
+    width: 13px;
+    height: 26px;
+    border: 1px solid #bfc7d7;
+    border-radius: 5px;
+    background: #f5f6fa;
+    color: #526078;
+    pointer-events: none;
+}
 .redimensionar-documentos:hover, .redimensionar-documentos:focus-visible, .redimensionar-documentos.redimensionando {
     background: #eee8ff;
-    border-inline: 1px solid var(--trilha-roxo);
 }
+.leitura-ampliada .redimensionar-documentos { display: none; }
 
 @media (max-width: 650px) {
     .divisao-processo, .divisao-processo.leitura-ampliada { display: block; }

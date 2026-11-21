@@ -8,6 +8,8 @@ use App\Libraries\Admin\ConsultaEmpresa;
 use App\Libraries\Organizacao\AcessoOrganizacao;
 use App\Libraries\Organizacao\AberturaProcesso;
 use App\Libraries\Organizacao\EdicaoProcesso;
+use App\Libraries\Organizacao\EnvioDocumento;
+use App\Libraries\Organizacao\EditorDocumento;
 use App\Libraries\Organizacao\ConsultaProcessos;
 use App\Libraries\Organizacao\ContextoSetor;
 use App\Libraries\Organizacao\PoliticaProcesso;
@@ -281,10 +283,249 @@ class Processos extends BaseController
         $processo = $consulta->listar($vinculo, $identificadorProcesso, true)[0] ?? null;
         if (!$processo) throw PageNotFoundException::forPageNotFound();
         $documentos = $consulta->documentos((string) $processo['id'], $vinculo);
+        $enderecoProcesso = site_url('organizacao/' . $identificadorOrganizacao . '/processos/' . $identificadorProcesso);
+        $envio = new EnvioDocumento(db_connect(), $layout['empresaSimulada']);
+        $documentos = $this->prepararDocumentosReais($documentos, $processo['acesso'], $enderecoProcesso, $identificadorOrganizacao, $vinculo, $layout['administradorSimulado']);
+        $documentosAtivos = array_filter($documentos, static fn (array $documento): bool => !$documento['excluido']);
         return $this->response->setHeader('Cache-Control', 'no-store, private')->setBody(view('organizacao/processo', $layout + [
             'tituloPagina' => $processo['numero'], 'processo' => $processo,
-            'documentos' => $this->prepararDocumentosReais($documentos, $processo['acesso']),
+            'enderecoProcesso' => $enderecoProcesso,
+            'documentos' => $documentos, 'documentoAtivo' => reset($documentosAtivos) ?: null,
+            'quantidadeDocumentosAtivos' => count($documentosAtivos),
+            'tiposDocumento' => $layout['administradorSimulado'] ? $envio->opcoes() : [],
+            'autoresDocumento' => $vinculo === null ? (new ConsultaEmpresa(db_connect(), $layout['empresaSimulada']))->usuarios() : [],
         ]));
+    }
+
+    public function editorDocumento(string $hash, string $processo): ResponseInterface
+    {
+        if (!preg_match('/^[a-f0-9]{48}$/D', $processo)) throw PageNotFoundException::forPageNotFound();
+        [$consulta, $layout, $vinculo] = $this->contextoReal($hash);
+        $registro = $consulta->listar($vinculo, $processo)[0] ?? null;
+        $setor = $layout['contextoTrabalho']['setor'] ?? null;
+        if (!$registro || !$setor) throw PageNotFoundException::forPageNotFound();
+        $empresa = $layout['empresaSimulada'];
+        $editor = new EditorDocumento(db_connect(), $empresa);
+        $processoId = (string) $registro['id'];
+        $enderecoProcesso = site_url('organizacao/' . $hash . '/processos/' . $processo);
+        $enderecoEditor = $enderecoProcesso . '/editor-documento';
+        $post = $this->request->is('post');
+        $chave = $post ? $this->request->getPost('chave') : $this->request->getGet('rascunho');
+        if ($chave !== null && (!is_string($chave) || !preg_match('/^[a-f0-9]{48}$/D', $chave))) {
+            throw PageNotFoundException::forPageNotFound();
+        }
+        $rascunho = $chave ? $editor->obter($processoId, $setor['id'], $vinculo, $chave) : null;
+        if (!$post && $chave && (!$rascunho || $rascunho['documento_id'] !== null)) throw PageNotFoundException::forPageNotFound();
+        $tipos = (new EnvioDocumento(db_connect(), $empresa))->opcoes();
+        $autores = $vinculo === null ? (new ConsultaEmpresa(db_connect(), $empresa))->usuarios() : [];
+        $dados = [
+            'chave' => $chave ?? bin2hex(random_bytes(24)), 'revisao' => $rascunho['revisao'] ?? '',
+            'tipo' => (string) ($rascunho['tipo_id'] ?? ''), 'titulo' => $rascunho['titulo'] ?? '',
+            'conteudo' => EditorDocumento::limpar($rascunho['conteudo'] ?? ''), 'autor' => (string) ($rascunho['autor_id'] ?? ''),
+            'hash_processo' => $processo,
+        ];
+        $erro = '';
+        if ($post) {
+            foreach (['revisao', 'tipo', 'titulo', 'conteudo', 'autor'] as $campo) {
+                $valor = $this->request->getPost($campo);
+                $dados[$campo] = is_string($valor) ? $valor : '';
+            }
+            $dados['titulo'] = trim($dados['titulo']);
+            $dados['conteudo'] = EditorDocumento::limpar($dados['conteudo']);
+            $autor = $vinculo ?? $dados['autor'];
+            $finalizar = $this->request->getPost('acao') === 'finalizar';
+            try {
+                if (!$chave || $this->request->getPost('setor_contexto') !== $setor['id']) {
+                    throw new DomainException('Abra o editor novamente no setor selecionado.');
+                }
+                if ($dados['titulo'] === '' || mb_strlen($dados['titulo']) > 500 || !preg_match('/^[1-9][0-9]{0,19}$/D', $dados['tipo'])) {
+                    throw new DomainException('Selecione o tipo e informe um título de até 500 caracteres.');
+                }
+                if ($vinculo === null && !isset(array_column($autores, null, 'vinculo_id')[$autor])) {
+                    throw new DomainException('Selecione um usuário interno ativo.');
+                }
+                if (strlen((string) $this->request->getPost('conteudo')) > 65535 || strlen($dados['conteudo']) > 65535) {
+                    throw new DomainException('O conteúdo ultrapassou o limite do editor.');
+                }
+                if ($finalizar && trim(html_entity_decode(strip_tags($dados['conteudo']), ENT_QUOTES, 'UTF-8')) === '') {
+                    throw new DomainException('Escreva o conteúdo antes de finalizar.');
+                }
+                $ano = (new DateTimeImmutable('now', new DateTimeZone($layout['fusoOrganizacao'])))->format('Y');
+                $id = $editor->salvar($processoId, $setor, $vinculo, $autor, $dados, $ano, $finalizar);
+                if ($id !== null) {
+                    return redirect()->to($enderecoProcesso . '?documento=' . $id, 303)->withCookies()
+                        ->with('sucessoEnvioDocumento', 'Documento finalizado e incluído no processo.');
+                }
+                return redirect()->to($enderecoEditor . '?rascunho=' . $chave, 303)->withCookies();
+            } catch (DomainException $excecao) {
+                $erro = $excecao->getMessage();
+            } catch (DatabaseException $excecao) {
+                log_message('error', 'Falha no editor de documentos: {erro}', ['erro' => $excecao->getMessage()]);
+                $erro = 'Não foi possível salvar. Seu texto continua no editor.';
+            }
+        }
+        return $this->response->setHeader('Cache-Control', 'private, no-store')->setBody(view('organizacao/editor_documento/editor', $layout + [
+            'tituloPagina' => 'Editor de documento', 'processo' => $registro, 'enderecoProcesso' => $enderecoProcesso,
+            'enderecoEditor' => $enderecoEditor, 'tipos' => $tipos, 'autores' => $autores, 'dados' => $dados, 'erro' => $erro,
+            'rascunhos' => $editor->listar($processoId, $setor['id'], $vinculo), 'setorEditor' => $setor,
+        ]));
+    }
+
+    public function lerDocumentoEditado(string $hash, string $processo, string $documento): ResponseInterface
+    {
+        if (!preg_match('/^[a-f0-9]{48}$/D', $processo)) throw PageNotFoundException::forPageNotFound();
+        [$consulta, , $vinculo] = $this->contextoReal($hash, false);
+        $registro = $consulta->listar($vinculo, $processo, true)[0] ?? null;
+        $item = $registro ? ($consulta->documentos((string) $registro['id'], $vinculo, $documento, true)[0] ?? null) : null;
+        if (!$item || $item['excluido_em'] !== null || $item['origem'] !== 'editor_trilha') throw PageNotFoundException::forPageNotFound();
+        $item['conteudo_editor'] = EditorDocumento::limpar($item['conteudo_editor'] ?? '');
+        return $this->response->setHeader('Cache-Control', 'private, no-store')
+            ->setHeader('Content-Security-Policy', "default-src 'none'; style-src 'self'; frame-ancestors 'self'; base-uri 'none'")
+            ->setBody(view('organizacao/editor_documento/leitura', ['documento' => $item]));
+    }
+
+    public function enviarDocumento(string $hash, string $processo): ResponseInterface
+    {
+        if (!preg_match('/^[a-f0-9]{48}$/D', $processo)) throw PageNotFoundException::forPageNotFound();
+        [$consulta, $layout, $vinculo] = $this->contextoReal($hash);
+        $registro = $consulta->listar($vinculo, $processo, true)[0] ?? null;
+        if (!$registro) throw PageNotFoundException::forPageNotFound();
+        $voltar = redirect()->to(site_url('organizacao/' . $hash . '/processos/' . $processo), 303)->withCookies();
+        $setor = $layout['contextoTrabalho']['setor'];
+        $tipo = $this->request->getPost('tipo_documento');
+        $titulo = $this->request->getPost('titulo_documento') ?? '';
+        if (!$setor || $this->request->getPost('setor_contexto') !== $setor['id']
+            || !is_string($tipo) || !preg_match('/^[1-9][0-9]{0,19}$/D', $tipo)) {
+            return $voltar->with('erroEnvioDocumento', 'Confira o setor ativo e selecione o tipo de documento.');
+        }
+        if (!is_string($titulo) || mb_strlen(trim($titulo)) > 500) {
+            return $voltar->with('erroEnvioDocumento', 'Informe um nome de exibição de até 500 caracteres.');
+        }
+        $autor = $vinculo;
+        if ($autor === null) {
+            $autor = $this->request->getPost('responsavel');
+            $usuarios = array_column((new ConsultaEmpresa(db_connect(), $layout['empresaSimulada']))->usuarios(), null, 'vinculo_id');
+            if (!is_string($autor) || !isset($usuarios[$autor])) {
+                return $voltar->with('erroEnvioDocumento', 'Selecione um usuário interno ativo.');
+            }
+        }
+        try {
+            $ano = (new DateTimeImmutable('now', new DateTimeZone($layout['fusoOrganizacao'])))->format('Y');
+            (new EnvioDocumento(db_connect(), $layout['empresaSimulada']))->salvar(
+                $hash, (string) $registro['id'], $tipo, trim($titulo), $ano, $setor, $autor, $vinculo, $this->request->getFile('documento'),
+            );
+        } catch (DomainException $erro) {
+            return $voltar->with('erroEnvioDocumento', $erro->getMessage());
+        } catch (DatabaseException | \CodeIgniter\HTTP\Exceptions\HTTPException $erro) {
+            log_message('error', 'Falha no envio de documento: {mensagem}', ['mensagem' => $erro->getMessage()]);
+            return $voltar->with('erroEnvioDocumento', 'Não foi possível salvar o documento. Tente novamente.');
+        }
+        return $voltar->with('sucessoEnvioDocumento', 'Documento adicionado ao processo.');
+    }
+
+    public function renomearDocumento(string $hash, string $processo, string $documento): ResponseInterface
+    {
+        if (!preg_match('/^[a-f0-9]{48}$/D', $processo)) throw PageNotFoundException::forPageNotFound();
+        [$consulta, $layout, $vinculo] = $this->contextoReal($hash);
+        $registro = $consulta->listar($vinculo, $processo, true)[0] ?? null;
+        $item = $registro ? ($consulta->documentos((string) $registro['id'], $vinculo, $documento)[0] ?? null) : null;
+        if (!$item || $item['excluido_em'] !== null) {
+            throw PageNotFoundException::forPageNotFound();
+        }
+        $titulo = $this->request->getPost('titulo');
+        $titulo = is_string($titulo) ? trim($titulo) : '';
+        if ($titulo === '' || !mb_check_encoding($titulo, 'UTF-8') || mb_strlen($titulo) > 500 || preg_match('/[\x00-\x1f\x7f]/', $titulo)) {
+            return $this->response->setStatusCode(422)->setJSON(['erro' => 'Informe um nome de até 500 caracteres.', 'csrf' => csrf_hash()]);
+        }
+        try {
+            db_connect()->table('documentos')->where([
+                'organizacao_id' => $layout['empresaSimulada'], 'processo_principal_id' => $registro['id'], 'id' => $documento, 'excluido_em' => null,
+            ])->update(['titulo' => $titulo, 'atualizado_em' => date('Y-m-d H:i:s')]);
+        } catch (DatabaseException) {
+            return $this->response->setStatusCode(409)->setJSON(['erro' => 'Não foi possível atualizar o nome.', 'csrf' => csrf_hash()]);
+        }
+        return $this->response->setJSON(['titulo' => $titulo, 'csrf' => csrf_hash()]);
+    }
+
+    public function alterarExclusaoDocumento(string $hash, string $processo, string $documento): ResponseInterface
+    {
+        if (!preg_match('/^[a-f0-9]{48}$/D', $processo)) throw PageNotFoundException::forPageNotFound();
+        $acao = $this->request->getPost('acao');
+        if (!in_array($acao, ['excluir', 'restaurar', 'definitiva'], true)) throw PageNotFoundException::forPageNotFound();
+        [$consulta, $layout, $vinculo] = $this->contextoReal($hash, $acao !== 'excluir');
+        $registro = $consulta->listar($vinculo, $processo, true)[0] ?? null;
+        $item = $registro ? ($consulta->documentos((string) $registro['id'], $vinculo, $documento)[0] ?? null) : null;
+        if (!$item || (!$layout['administradorSimulado'] && $vinculo !== (string) $item['criado_por'])) {
+            throw PageNotFoundException::forPageNotFound();
+        }
+
+        $endereco = site_url('organizacao/' . $hash . '/processos/' . $processo);
+        $voltar = redirect()->to($endereco . '?documento=' . rawurlencode($documento), 303)->withCookies();
+        $banco = db_connect();
+        $escopo = ['organizacao_id' => $layout['empresaSimulada'], 'id' => $documento, 'processo_principal_id' => $registro['id']];
+        $tabela = $banco->table('documentos');
+        try {
+            if ($acao === 'definitiva') {
+                $banco->transException(true);
+                if (!$banco->transBegin()) throw new DatabaseException('Falha ao iniciar transação.');
+                try {
+                    $bloqueado = $banco->query(
+                        'SELECT excluido_em FROM documentos WHERE organizacao_id = ? AND id = ? AND processo_principal_id = ? FOR UPDATE',
+                        [$escopo['organizacao_id'], $escopo['id'], $escopo['processo_principal_id']],
+                    )->getRowArray();
+                    if (empty($bloqueado['excluido_em'])) throw new DatabaseException('Documento não está excluído.');
+                    $tabela->where($escopo)->update(['versao_atual_id' => null]);
+                    $banco->table('documento_versoes')->where([
+                        'organizacao_id' => $layout['empresaSimulada'], 'documento_id' => $documento,
+                    ])->delete();
+                    $tabela->where($escopo)->where('excluido_em IS NOT NULL', null, false)->delete();
+                    if (!$banco->transStatus() || !$banco->transCommit()) throw new DatabaseException('Falha ao confirmar exclusão.');
+                } catch (\Throwable $erro) {
+                    $banco->transRollback();
+                    throw $erro;
+                }
+            } else {
+                $agora = date('Y-m-d H:i:s');
+                $condicao = $acao === 'excluir' ? 'excluido_em IS NULL' : 'excluido_em IS NOT NULL';
+                $tabela->where($escopo)->where($condicao, null, false)->update([
+                    'excluido_em' => $acao === 'excluir' ? $agora : null, 'atualizado_em' => $agora,
+                ]);
+            }
+        } catch (DatabaseException $erro) {
+            log_message('error', 'Falha ao alterar exclusão do documento: {mensagem}', ['mensagem' => $erro->getMessage()]);
+            return $voltar->with('erroEnvioDocumento', 'Não foi possível concluir a ação. O documento pode ter vínculos com outros registros.');
+        }
+
+        return $voltar->with('sucessoEnvioDocumento', match ($acao) {
+            'excluir' => 'Documento marcado como excluído. Somente um administrador pode restaurá-lo.',
+            'restaurar' => 'Documento restaurado.',
+            'definitiva' => 'Documento removido do processo.',
+        });
+    }
+
+    private const MIMES_IMAGEM_VISUALIZAVEL = [
+        'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/avif', 'image/bmp', 'image/x-ms-bmp', 'image/x-icon', 'image/vnd.microsoft.icon',
+    ];
+
+    public function baixarDocumento(string $hash, string $processo, string $documento, string $modo = ''): ResponseInterface
+    {
+        if (!preg_match('/^[a-f0-9]{48}$/D', $processo)) throw PageNotFoundException::forPageNotFound();
+        $inline = $modo === 'visualizar';
+        [$consulta, , $vinculo] = $this->contextoReal($hash, !$inline);
+        $registro = $consulta->listar($vinculo, $processo, true)[0] ?? null;
+        if (!$registro) throw PageNotFoundException::forPageNotFound();
+        $arquivo = $consulta->documentos((string) $registro['id'], $vinculo, $documento)[0] ?? null;
+        $chave = $arquivo['chave_arquivo'] ?? '';
+        $mime = $arquivo['mime_arquivo'] ?? '';
+        $padraoChave = '~^(?:documentos|' . preg_quote($hash, '~') . ')/[a-f0-9]{48}$~D';
+        if (!empty($arquivo['excluido_em']) || ($inline && $mime !== 'application/pdf' && !in_array($mime, self::MIMES_IMAGEM_VISUALIZAVEL, true))
+            || !preg_match($padraoChave, $chave) || !is_file(WRITEPATH . 'uploads/' . $chave)) {
+            throw PageNotFoundException::forPageNotFound();
+        }
+        $resposta = $this->response->download(WRITEPATH . 'uploads/' . $chave, null)
+            ->setFileName($arquivo['nome_arquivo'])->setHeader('Cache-Control', 'private, no-store')
+            ->setHeader('X-Content-Type-Options', 'nosniff');
+        return $inline ? $resposta->setContentType($mime, '')->inline() : $resposta;
     }
 
     /** Usa os componentes aprovados do explorador com registros do banco. */
@@ -461,17 +702,28 @@ class Processos extends BaseController
     }
 
     /** Adapta os metadados reais ao painel de documentos, sem expor chaves de armazenamento. */
-    private function prepararDocumentosReais(array $documentos, string $acesso): array
+    private function prepararDocumentosReais(array $documentos, string $acesso, string $enderecoProcesso, string $hash, ?string $vinculo, bool $administrador): array
     {
-        return array_map(static function (array $documento) use ($acesso): array {
+        $padraoChave = '~^(?:documentos|' . preg_quote($hash, '~') . ')/[a-f0-9]{48}$~D';
+        return array_map(static function (array $documento) use ($acesso, $enderecoProcesso, $padraoChave, $vinculo, $administrador): array {
             $nome = $documento['nome_arquivo'] ?: $documento['titulo'];
+            $excluido = $documento['excluido_em'] !== null;
+            $endereco = $enderecoProcesso . '/documentos/' . $documento['id'];
+            $disponivel = !$excluido && preg_match($padraoChave, $documento['chave_arquivo'] ?? '');
             return [
                 'id' => (string) $documento['id'], 'titulo' => $documento['titulo'], 'nomeArquivo' => $nome,
-                'numero' => $documento['numero_completo'] ?? 'Sem número',
+                'excluido' => $excluido, 'podeExcluir' => $administrador || $vinculo === (string) $documento['criado_por'],
+                'download' => $disponivel && $administrador ? $endereco . '/arquivo' : '',
+                'pdf' => $disponivel && $documento['mime_arquivo'] === 'application/pdf' ? $endereco . '/visualizar' : '',
+                'leitura' => !$excluido && $documento['origem'] === 'editor_trilha' ? $endereco . '/leitura' : '',
+                'imagem' => $disponivel && in_array($documento['mime_arquivo'], self::MIMES_IMAGEM_VISUALIZAVEL, true) ? $endereco . '/visualizar' : '',
+                'numero' => $documento['numero_sequencial'] !== null && $documento['periodo_numeracao'] !== null
+                    ? str_pad((string) $documento['numero_sequencial'], 4, '0', STR_PAD_LEFT) . '/' . $documento['periodo_numeracao']
+                    : ($documento['numero_completo'] ?? 'Sem número'),
                 'formato' => strtolower(pathinfo($documento['nome_arquivo'] ?? '', PATHINFO_EXTENSION)),
                 'tipo' => $documento['tipo'], 'autor' => $documento['autor'] ?? '—', 'setor' => $documento['setor'],
                 'data' => date('d/m/Y · H:i', strtotime($documento['criado_em'])),
-                'situacao' => $documento['situacao'], 'cor' => 'neutro',
+                'situacao' => $excluido ? 'Excluído' : $documento['situacao'], 'cor' => $excluido ? 'vermelho' : 'neutro',
                 'acesso' => PoliticaProcesso::NIVEIS[$documento['nivel']] ?? $documento['nivel'] ?? $acesso,
                 'versao' => (string) ($documento['numero_versao'] ?? '—'), 'descricao' => '',
             ];

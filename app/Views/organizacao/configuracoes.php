@@ -25,6 +25,7 @@
             'perfis' => ['Perfis e permissões', 'fa-solid fa-shield-halved'],
             'tipos-processo' => ['Tipos de processo', 'fa-regular fa-file-lines'],
             'situacoes-processo' => ['Situações de processo', 'fa-solid fa-list-check'],
+            'tipos-documento' => ['Tipos de Documentos', 'fa-regular fa-folder-open'],
         ] as $secao => [$rotulo, $icone]): ?>
             <a href="<?= esc(site_url('organizacao/' . $identificadorOrganizacao . '/configuracoes/' . $secao), 'attr') ?>"
                 <?= $secaoConfiguracoes === $secao ? 'aria-current="page"' : '' ?>>

@@ -26,7 +26,7 @@ class ContextoTrabalho extends BaseController
             'processos' => 'processos',
             'configuracoes' => 'configuracoes',
             'configuracoes/estrutura', 'configuracoes/equipe', 'configuracoes/perfis',
-            'configuracoes/tipos-processo', 'configuracoes/situacoes-processo' => $pagina,
+            'configuracoes/tipos-processo', 'configuracoes/situacoes-processo', 'configuracoes/tipos-documento' => $pagina,
             'perfil' => 'meu-perfil',
             'documentos', 'assinaturas', 'pastas', 'unidades', 'setores' => 'dashboard?modulo=' . $pagina,
             default => 'dashboard',

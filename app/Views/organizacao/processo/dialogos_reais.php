@@ -11,3 +11,16 @@
     </dl>
     <footer class="rodape-acao"><button type="button" class="btn btn-primary ms-auto" data-fechar-acao>Fechar</button></footer>
 </dialog>
+<?php if ($documentos): ?>
+    <dialog id="dialogo-exclusao-documento" class="dialogo-acao" aria-labelledby="titulo-exclusao-documento" aria-describedby="mensagem-exclusao-documento">
+        <h2 id="titulo-exclusao-documento"></h2>
+        <p id="mensagem-exclusao-documento"></p>
+        <p class="referencia-acao" id="referencia-exclusao-documento"></p>
+        <form method="post" class="rodape-acao" data-endereco="<?= esc($enderecoProcesso . '/documentos', 'attr') ?>">
+            <?= csrf_field() ?>
+            <input type="hidden" name="acao">
+            <button type="button" class="btn btn-outline-secondary" id="cancelar-exclusao-documento" autofocus>Cancelar</button>
+            <button type="submit" class="btn" id="confirmar-exclusao-documento"></button>
+        </form>
+    </dialog>
+<?php endif ?>

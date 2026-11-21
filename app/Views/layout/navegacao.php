@@ -29,6 +29,7 @@ if (!$administradorSimulado) $menusSimulados += ['unidades' => ['Unidades', 'fa-
                     <a class="opcao-menu" href="<?= esc($enderecoConfiguracoes . '/perfis', 'attr') ?>"><i class="fa-solid fa-shield-halved" aria-hidden="true"></i>Perfis e permissões</a>
                     <a class="opcao-menu" href="<?= esc($enderecoConfiguracoes . '/tipos-processo', 'attr') ?>"><i class="fa-regular fa-file-lines" aria-hidden="true"></i>Tipos de processo</a>
                     <a class="opcao-menu" href="<?= esc($enderecoConfiguracoes . '/situacoes-processo', 'attr') ?>"><i class="fa-solid fa-list-check" aria-hidden="true"></i>Situações de processo</a>
+                    <a class="opcao-menu" href="<?= esc($enderecoConfiguracoes . '/tipos-documento', 'attr') ?>"><i class="fa-regular fa-folder-open" aria-hidden="true"></i>Tipos de Documentos</a>
                     <?php if ($modoSimulacao): ?><a class="opcao-menu" href="<?= esc(site_url('admin/clientes/' . $empresaSimulada . '/editar'), 'attr') ?>"><i class="fa-regular fa-pen-to-square" aria-hidden="true"></i>Editar dados da empresa</a><?php endif ?>
                 </div>
             </details><?php endif ?>
