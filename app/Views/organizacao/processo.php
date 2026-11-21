@@ -24,6 +24,11 @@
 <?php elseif ($mensagem = session()->getFlashdata('erroEnvioDocumento')): ?>
     <p class="alert alert-danger mb-3" role="alert"><?= esc($mensagem) ?></p>
 <?php endif ?>
+<?php if ($mensagem = session()->getFlashdata('sucessoPastaProcesso')): ?>
+    <p class="alert alert-success mb-3" role="status"><?= esc($mensagem) ?></p>
+<?php elseif ($mensagem = session()->getFlashdata('erroPastaProcesso')): ?>
+    <p class="alert alert-danger mb-3" role="alert"><?= esc($mensagem) ?></p>
+<?php endif ?>
 <header class="cabecalho-processo">
     <div>
         <h1><?= esc($processo['assunto']) ?></h1>
@@ -43,6 +48,7 @@
     </div>
     <?= $this->include('organizacao/processo/tarefas') ?>
 </header>
+<p id="erro-acompanhar-processo" class="alert alert-danger mb-3" role="alert" hidden></p>
 
 <!-- Mantém a lista de documentos ao lado da área de leitura. -->
 <section class="area-processo" data-acesso="<?= esc($processo['acesso'], 'attr') ?>" aria-label="Documentos e leitura do processo">

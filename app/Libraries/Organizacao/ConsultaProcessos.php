@@ -122,6 +122,17 @@ class ConsultaProcessos
         return $consulta->orderBy('atualizacao', 'DESC')->orderBy('p.id', 'DESC')->get()->getResultArray();
     }
 
+    /** Retorna somente eventos internos do processo, sem detalhes de documentos. */
+    public function historicoProcesso(string $id): array
+    {
+        return $this->banco->table('historico_eventos h')
+            ->select('h.tipo, h.ocorrido_em, u.nome AS autor')
+            ->join('vinculos_organizacao v', 'v.organizacao_id = h.organizacao_id AND v.id = h.autor_id', 'left')
+            ->join('usuarios u', 'u.id = v.usuario_id', 'left')
+            ->where(['h.organizacao_id' => $this->empresa, 'h.processo_id' => $id, 'h.documento_id' => null, 'h.visibilidade' => 'interno'])
+            ->orderBy('h.ocorrido_em', 'DESC')->orderBy('h.id', 'DESC')->get()->getResultArray();
+    }
+
     private function consultaVisivel(?string $vinculo, string $escopo): \CodeIgniter\Database\BaseBuilder
     {
         $consulta = $this->banco->table('processos p')
@@ -304,11 +315,16 @@ class ConsultaProcessos
             $chave = ['organizacao_id' => $this->empresa, 'processo_id' => $processo['id']];
             if ($destino !== $origem) {
                 if ($origem !== '') $this->banco->table('pasta_processos')->where($chave + ['pasta_id' => $origem])->delete();
+                $agora = date('Y-m-d H:i:s');
                 if ($destino !== '' && !in_array($destino, $atuais, true)) {
                     $this->banco->table('pasta_processos')->insert($chave + [
-                        'pasta_id' => $destino, 'incluido_por' => $autor, 'criado_em' => date('Y-m-d H:i:s'),
+                        'pasta_id' => $destino, 'incluido_por' => $autor, 'criado_em' => $agora,
                     ]);
                 }
+                $this->banco->table('historico_eventos')->insert($chave + [
+                    'tipo' => 'processo.mover', 'autor_id' => $autor, 'ocorrido_em' => $agora, 'criado_em' => $agora,
+                    'visibilidade' => 'interno', 'detalhes' => json_encode(['origem' => $origem, 'pasta' => $destino], JSON_THROW_ON_ERROR),
+                ]);
             }
             if (!$this->banco->transStatus() || !$this->banco->transCommit()) throw new DomainException('Não foi possível atualizar a pasta.');
         } catch (Throwable $erro) {

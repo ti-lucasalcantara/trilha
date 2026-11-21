@@ -241,10 +241,15 @@
         if (usaDocumento && !dados) return;
         const informacoes = document.getElementById('informacoes-processo-real');
         informacoes.hidden = chave !== 'informacoes';
+        let temPainel = false;
+        dialogoAcao.querySelectorAll('[data-painel-acao]').forEach(painel => {
+            painel.hidden = painel.dataset.painelAcao !== chave;
+            if (!painel.hidden) temPainel = true;
+        });
         document.getElementById('titulo-acao').textContent = configuracao;
         document.getElementById('descricao-acao').textContent = chave === 'acesso'
             ? `Nível atual: ${usaDocumento ? dados.acesso : processoReal.dataset.acesso}.`
-            : chave === 'informacoes' ? '' : 'Esta ação ainda não está disponível.';
+            : chave === 'informacoes' || temPainel ? '' : 'Esta ação ainda não está disponível.';
         document.getElementById('referencia-acao').textContent = usaDocumento ? dados.arquivo : document.querySelector('.numero-processo').textContent;
         botao.closest('details')?.removeAttribute('open');
         dialogoAcao.showModal();
@@ -374,11 +379,34 @@
     if (documentos.length) campoPesquisa.addEventListener('input', pesquisarDocumentos);
     else campoPesquisa.disabled = true;
     botaoAmpliar?.addEventListener('click', alternarLeituraAmpliada);
-    document.getElementById('acompanhar-processo').addEventListener('click', function informarAcompanhamento() {
-        document.getElementById('titulo-acao').textContent = 'Acompanhar processo';
-        document.getElementById('descricao-acao').textContent = 'Esta ação ainda não está disponível.';
-        document.getElementById('informacoes-processo-real').hidden = true;
-        document.getElementById('referencia-acao').textContent = document.querySelector('.numero-processo').textContent;
-        dialogoAcao.showModal();
+    const formAcompanhar = document.getElementById('form-acompanhar-processo');
+    const botaoAcompanhar = document.getElementById('acompanhar-processo');
+    const erroAcompanhar = document.getElementById('erro-acompanhar-processo');
+    formAcompanhar.addEventListener('submit', async evento => {
+        evento.preventDefault();
+        if (botaoAcompanhar.disabled) return;
+        const corpo = new FormData(formAcompanhar);
+        corpo.set('acompanhar', botaoAcompanhar.getAttribute('aria-pressed') === 'true' ? '0' : '1');
+        botaoAcompanhar.disabled = true;
+        erroAcompanhar.hidden = true;
+        try {
+            const resposta = await fetch(formAcompanhar.action, {
+                method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest' }, body: corpo,
+            });
+            const dados = await resposta.json();
+            if (dados.csrf) {
+                document.querySelectorAll('input[type="hidden"]').forEach(input => {
+                    if (input.name === formAcompanhar.dataset.csrf) input.value = dados.csrf;
+                });
+            }
+            if (!resposta.ok) throw new Error(dados.erro || 'Não foi possível atualizar o acompanhamento.');
+            botaoAcompanhar.setAttribute('aria-pressed', String(dados.acompanhado));
+            botaoAcompanhar.querySelector('i').className = `${dados.acompanhado ? 'fa-solid' : 'fa-regular'} fa-star`;
+        } catch (erro) {
+            erroAcompanhar.textContent = erro instanceof SyntaxError ? 'Atualize a página e tente novamente.' : erro.message;
+            erroAcompanhar.hidden = false;
+        } finally {
+            botaoAcompanhar.disabled = false;
+        }
     });
 })();

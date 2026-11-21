@@ -36,9 +36,16 @@ class Processos extends BaseController
         $caixa = $this->request->getPost('caixa');
         $caixa = is_string($caixa) && isset(self::ACOES_POR_CAIXA[$caixa]) ? $caixa : 'ativos';
         $endereco = site_url('organizacao/' . $hash . '/processos');
-        $voltar = redirect()->to($endereco . ($caixa === 'ativos' ? '' : '?caixa=' . $caixa), 303)->withCookies();
         $acao = $this->request->getPost('acao');
         $hashes = $this->request->getPost('processos');
+        $retorno = $endereco . ($caixa === 'ativos' ? '' : '?caixa=' . $caixa);
+        $hashUnico = is_array($hashes) && count($hashes) === 1 ? reset($hashes) : null;
+        $retornaAoProcesso = $acao === 'encaminhar' && $this->request->getPost('retorno') === 'processo'
+            && is_string($hashUnico) && preg_match('/^[a-f0-9]{48}$/D', $hashUnico);
+        if ($retornaAoProcesso) {
+            $retorno = $endereco . '/' . $hashUnico;
+        }
+        $voltar = redirect()->to($retorno, 303)->withCookies();
         $destino = $this->request->getPost('destino') ?? '';
         $setoresDestino = $acao === 'encaminhar' ? ($this->request->getPost('setor_destino') ?? []) : [];
         $manter = $acao === 'encaminhar' ? ($this->request->getPost('manter') ?? []) : [];
@@ -70,6 +77,9 @@ class Processos extends BaseController
                 'excluir' => 'Seleção enviada para a Lixeira.', 'restaurar' => 'Seleção restaurada.',
                 'encaminhar' => count($setoresDestino) === 1 ? 'Processos encaminhados ao setor de destino.' : 'Processos encaminhados aos setores selecionados.',
             ];
+            if ($retornaAoProcesso && !in_array($hashUnico, $manter, true)) {
+                $voltar = redirect()->to($endereco, 303)->withCookies();
+            }
             return $voltar->with('sucessoPastaProcesso', $mensagens[$acao]);
         } catch (DomainException $erro) {
             return $voltar->with('erroPastaProcesso', $erro->getMessage());
@@ -248,7 +258,9 @@ class Processos extends BaseController
     {
         if (!preg_match('/^[a-f0-9]{48}$/D', $processo)) throw PageNotFoundException::forPageNotFound();
         [$consulta, $layout, $vinculo] = $this->contextoReal($hash);
-        $voltar = redirect()->to(site_url('organizacao/' . $hash . '/processos'), 303)->withCookies();
+        $endereco = site_url('organizacao/' . $hash . '/processos');
+        if ($this->request->getPost('retorno') === 'processo') $endereco .= '/' . $processo;
+        $voltar = redirect()->to($endereco, 303)->withCookies();
         $origem = $this->request->getPost('origem');
         $destino = $this->request->getPost('destino');
         $setor = $layout['contextoTrabalho']['setor']['id'] ?? null;
@@ -282,6 +294,18 @@ class Processos extends BaseController
         if (!preg_match('/^[a-f0-9]{48}$/D', $identificadorProcesso)) throw PageNotFoundException::forPageNotFound();
         $processo = $consulta->listar($vinculo, $identificadorProcesso, true)[0] ?? null;
         if (!$processo) throw PageNotFoundException::forPageNotFound();
+        if ($vinculo === null) {
+            $marcados = session()->get('acompanhamentos_simulados_' . $identificadorOrganizacao) ?? [];
+            $processo['acompanhado'] = isset($marcados[$identificadorProcesso]);
+        }
+        $setor = $layout['contextoTrabalho']['setor']['id'] ?? null;
+        $gerencia = $layout['administradorSimulado'] && $setor !== null
+            && $consulta->listar($vinculo, $identificadorProcesso);
+        $destinosTramitacao = $gerencia && !$processo['encerrado_em']
+            ? array_diff_key($layout['contextoTrabalho']['setores'], [$setor => true]) : [];
+        $pastasDisponiveis = $gerencia ? $consulta->caminhosPastas($consulta->explorador($vinculo)['pastasReais']) : [];
+        $autoresOperacao = $gerencia && $vinculo === null
+            ? (new ConsultaEmpresa(db_connect(), $layout['empresaSimulada']))->usuarios() : [];
         $documentos = $consulta->documentos((string) $processo['id'], $vinculo);
         $enderecoProcesso = site_url('organizacao/' . $identificadorOrganizacao . '/processos/' . $identificadorProcesso);
         $envio = new EnvioDocumento(db_connect(), $layout['empresaSimulada']);
@@ -290,6 +314,10 @@ class Processos extends BaseController
         return $this->response->setHeader('Cache-Control', 'no-store, private')->setBody(view('organizacao/processo', $layout + [
             'tituloPagina' => $processo['numero'], 'processo' => $processo,
             'enderecoProcesso' => $enderecoProcesso,
+            'historicoProcesso' => $consulta->historicoProcesso((string) $processo['id']),
+            'destinosTramitacao' => $destinosTramitacao, 'pastasDisponiveis' => $pastasDisponiveis,
+            'pastasAtuais' => array_intersect_key($pastasDisponiveis, array_flip(explode(',', $processo['pastas']))),
+            'autoresOperacao' => $autoresOperacao,
             'documentos' => $documentos, 'documentoAtivo' => reset($documentosAtivos) ?: null,
             'quantidadeDocumentosAtivos' => count($documentosAtivos),
             'tiposDocumento' => $layout['administradorSimulado'] ? $envio->opcoes() : [],
