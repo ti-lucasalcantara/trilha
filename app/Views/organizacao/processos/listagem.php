@@ -115,8 +115,7 @@ $colunasConsulta = [
             </div>
             <?php if ($observacoes !== ''): ?>
                 <div id="<?= esc($identificadorObservacoes, 'attr') ?>" class="tooltip-observacoes" role="tooltip" popover="manual">
-                    <div class="texto-tooltip-observacoes"><?= esc($observacoes) ?></div>
-                    <small class="dica-tooltip-observacoes">Pressione Esc para fechar</small>
+                    <div class="texto-tooltip-observacoes my-2"><?= esc($observacoes) ?></div>
                 </div>
             <?php endif ?>
         </td>

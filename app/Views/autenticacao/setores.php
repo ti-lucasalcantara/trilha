@@ -11,16 +11,16 @@
 </head>
 <body class="pagina-entrada pagina-acesso-direto">
     <main class="cartao-acesso-direto cartao-seletores" aria-labelledby="titulo-setores">
-        <img class="logo-entrada" src="<?= esc(base_url('img/logo.png'), 'attr') ?>" alt="Trilha" width="2172" height="724">
-        <div class="titulo-entrada">
+        <header class="cabecalho-escolha-setor">
+            <img class="logo-entrada" src="<?= esc(base_url('img/logo.png'), 'attr') ?>" alt="Trilha" width="2172" height="724">
             <p class="organizacao-escolha-setor"><?= esc($organizacao) ?></p>
-            <h1 id="titulo-setores">Em qual setor você quer trabalhar?</h1>
-            <p>Escolha o setor para acessar a caixa de trabalho.</p>
-        </div>
+            <h1 id="titulo-setores">Seja bem-vindo(a), <?= esc($nomeUsuario) ?>!</h1>
+            <p class="instrucao-escolha-setor" id="instrucao-setores">Escolha um setor para acessar a caixa de trabalho.</p>
+        </header>
         <?php if ($erro = session()->getFlashdata('erroEscolhaSetor')): ?>
             <p class="alert alert-danger aviso-entrada" role="alert"><?= esc($erro) ?></p>
         <?php endif ?>
-        <form action="<?= esc($acao, 'attr') ?>" method="post">
+        <form action="<?= esc($acao, 'attr') ?>" method="post" aria-describedby="instrucao-setores">
             <?= csrf_field() ?>
             <?php foreach ($unidades as $unidade): ?>
                 <fieldset class="grupo-escolha-setor">
@@ -28,7 +28,10 @@
                     <?php foreach ($unidade['setores'] as $setor): ?>
                         <label class="opcao-escolha-setor">
                             <input class="form-check-input" type="radio" name="setor" value="<?= esc($setor['id'], 'attr') ?>" required>
-                            <span><?= esc($setor['nome']) ?><?= $setor['sigla'] ? ' · ' . esc($setor['sigla']) : '' ?></span>
+                            <span class="nome-escolha-setor"><?= esc($setor['nome']) ?></span>
+                            <?php if ($setor['sigla']): ?>
+                                <span class="sigla-escolha-setor"><?= esc($setor['sigla']) ?></span>
+                            <?php endif ?>
                         </label>
                     <?php endforeach ?>
                 </fieldset>

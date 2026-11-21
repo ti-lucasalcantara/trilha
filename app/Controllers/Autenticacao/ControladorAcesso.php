@@ -136,6 +136,7 @@ class ControladorAcesso extends BaseController
         }
 
         return $this->response->setHeader('Cache-Control', 'no-store, private')->setBody(view('autenticacao/setores', [
+            'nomeUsuario' => $contexto['usuario'],
             'organizacao' => $contexto['organizacao'], 'unidades' => $opcoes['unidades'],
             'acao' => $base . '/escolher-setor',
         ]));

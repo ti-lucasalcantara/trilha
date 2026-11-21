@@ -15,7 +15,9 @@ $routes->get('bloqueio/avatar', 'Autenticacao\ControladorAcesso::avatarBloqueado
 $routes->get('organizacao/(:segment)/escolher-setor', 'Autenticacao\ControladorAcesso::escolherSetor/$1');
 $routes->post('organizacao/(:segment)/escolher-setor', 'Autenticacao\ControladorAcesso::confirmarSetor/$1', ['filter' => 'csrf']);
 
-$routes->get('organizacao/(:any)/dashboard', 'Organizacao\Painel::exibir/$1');
+$routes->get('organizacao/(:any)/dashboard', 'Organizacao\CaixaTrabalho::exibir/$1');
+$routes->get('organizacao/(:segment)/pastas', 'Organizacao\Pastas::exibir/$1');
+$routes->post('organizacao/(:segment)/pastas', 'Organizacao\Pastas::salvar/$1', ['filter' => 'csrf']);
 $routes->get('organizacao/(:segment)/meu-perfil', 'Organizacao\Perfil::exibir/$1');
 $routes->post('organizacao/(:segment)/meu-perfil/senha', 'Organizacao\Perfil::alterarSenha/$1', ['filter' => 'csrf']);
 $routes->get('organizacao/(:segment)/meu-perfil/foto', 'Organizacao\Perfil::foto/$1');

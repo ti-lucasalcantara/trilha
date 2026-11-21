@@ -9,6 +9,9 @@ use Throwable;
 /** Adapta os registros de uma organização ao explorador de processos. */
 class ConsultaProcessos
 {
+    private const PROXIMO_PRAZO = '(SELECT MIN(pr.vence_em) FROM prazos pr
+        WHERE pr.organizacao_id = p.organizacao_id AND pr.processo_id = p.id AND pr.concluido_em IS NULL)';
+
     public function __construct(private readonly BaseConnection $banco, private readonly string $empresa, private readonly string $setorAtivo)
     {
     }
@@ -48,25 +51,21 @@ class ConsultaProcessos
         if ($acessoDireto && $hash !== null && $vinculo !== null) {
             $escopo = "({$escopo} OR {$nivel} IN ('restrito', 'confidencial'))";
         }
-        $consulta = $this->banco->table('processos p')
+        $consulta = $this->consultaVisivel($vinculo, $escopo)
             ->select('p.id, p.numero_completo AS numero, p.assunto, p.descricao, tipo.nome AS tipo, situacao.nome AS situacao, unidade.nome AS unidade, setor.nome AS setor, usuario.nome AS responsavel, p.unidade_origem_id AS unidadeEscopo, p.setor_origem_id AS setorEscopo, p.aberto_em AS abertura, p.atualizado_em AS atualizacao, p.encerrado_em')
             ->join('tipos_processo tipo', 'tipo.organizacao_id = p.organizacao_id AND tipo.id = p.tipo_processo_id')
-            ->join('status_processo situacao', 'situacao.organizacao_id = p.organizacao_id AND situacao.id = p.status_id')
             ->select('situacao.cor AS cor_situacao')
             ->select('p.hash_publico')
             ->join('unidades unidade', 'unidade.organizacao_id = p.organizacao_id AND unidade.id = p.unidade_origem_id')
             ->join('setores setor', 'setor.organizacao_id = p.organizacao_id AND setor.id = p.setor_origem_id')
             ->join('vinculos_organizacao autor', 'autor.organizacao_id = p.organizacao_id AND autor.id = p.aberto_por', 'left')
             ->join('usuarios usuario', 'usuario.id = autor.usuario_id', 'left')
-            ->where('p.organizacao_id', $this->empresa)
-            ->where($escopo, null, false)
-            ->select('(SELECT MIN(pr.vence_em) FROM prazos pr WHERE pr.organizacao_id = p.organizacao_id AND pr.processo_id = p.id AND pr.concluido_em IS NULL) AS prazo', false)
+            ->select(self::PROXIMO_PRAZO . ' AS prazo', false)
             ->select($nivel . ' AS acesso', false)
             ->select("(SELECT GROUP_CONCAT(pp.pasta_id SEPARATOR ',') FROM pasta_processos pp WHERE pp.organizacao_id = p.organizacao_id AND pp.processo_id = p.id) AS pastas", false)
             ->select("(SELECT GROUP_CONCAT(i.nome SEPARATOR ', ') FROM processo_interessados pi JOIN interessados i ON i.organizacao_id = pi.organizacao_id AND i.id = pi.interessado_id WHERE pi.organizacao_id = p.organizacao_id AND pi.processo_id = p.id) AS interessado", false)
             ->select("(SELECT GROUP_CONCAT(DISTINCT s.nome SEPARATOR ',') FROM tramitacao_destinatarios d JOIN setores s ON s.organizacao_id = d.organizacao_id AND s.id = d.setor_id WHERE d.organizacao_id = p.organizacao_id AND d.tramitacao_id = (SELECT MAX(t.id) FROM tramitacoes t WHERE t.organizacao_id = p.organizacao_id AND t.processo_id = p.id AND t.documento_id IS NULL)) AS destinos_registrados", false)
             ->select('(SELECT MAX(t.enviada_em) FROM tramitacoes t WHERE t.organizacao_id = p.organizacao_id AND t.processo_id = p.id AND t.documento_id IS NULL) AS ultima_tramitacao', false);
-        if ($vinculo !== null) $consulta->where(PoliticaProcesso::condicao($this->banco, 'p', $vinculo), null, false);
         if ($hash !== null) $consulta->select('p.descricao_formatada, p.aberto_por')->where('p.hash_publico', $hash);
         $this->filtrarCaixa($consulta, $acessoDireto ? 'consultaveis' : $caixa);
 
@@ -92,6 +91,45 @@ class ConsultaProcessos
             $processo['grupoPasta'] = $processo['pasta'] = '';
             return $processo;
         }, $consulta->orderBy('p.id', 'DESC')->get()->getResultArray());
+    }
+
+    /** Retorna os campos usados pela Caixa de trabalho, em ordem de atualização. */
+    public function listarParaCaixa(?string $vinculo): array
+    {
+        if ($this->setorAtivo === '') return [];
+
+        $consulta = $this->consultaVisivel($vinculo, ContextoSetor::condicaoProcessos($this->banco, $this->setorAtivo, 'p'))
+            ->select('p.hash_publico, p.numero_completo AS numero, p.assunto, situacao.nome AS situacao')
+            ->select('CASE WHEN p.encerrado_em IS NULL THEN ' . self::PROXIMO_PRAZO . ' END AS prazo', false)
+            ->select('GREATEST(p.aberto_em, COALESCE(p.atualizado_em, p.aberto_em), COALESCE(
+                (SELECT MAX(t.enviada_em) FROM tramitacoes t WHERE t.organizacao_id = p.organizacao_id
+                    AND t.processo_id = p.id AND t.documento_id IS NULL), p.aberto_em)) AS atualizacao', false);
+        $this->filtrarCaixa($consulta, 'ativos');
+
+        return $consulta->orderBy('atualizacao', 'DESC')->orderBy('p.id', 'DESC')->get()->getResultArray();
+    }
+
+    /** Lista os processos consultáveis vinculados diretamente à pasta aberta. */
+    public function listarNaPasta(string $pasta, ?string $vinculo): array
+    {
+        $consulta = $this->consultaVisivel($vinculo, ContextoSetor::condicaoProcessos($this->banco, $this->setorAtivo, 'p'))
+            ->select('p.hash_publico, p.numero_completo AS numero, p.assunto, situacao.nome AS situacao')
+            ->select('COALESCE(p.atualizado_em, p.aberto_em) AS atualizacao', false)
+            ->join('pasta_processos pp', 'pp.organizacao_id = p.organizacao_id AND pp.processo_id = p.id')
+            ->where('pp.pasta_id', $pasta);
+        $this->filtrarCaixa($consulta, 'consultaveis');
+
+        return $consulta->orderBy('atualizacao', 'DESC')->orderBy('p.id', 'DESC')->get()->getResultArray();
+    }
+
+    private function consultaVisivel(?string $vinculo, string $escopo): \CodeIgniter\Database\BaseBuilder
+    {
+        $consulta = $this->banco->table('processos p')
+            ->join('status_processo situacao', 'situacao.organizacao_id = p.organizacao_id AND situacao.id = p.status_id')
+            ->where('p.organizacao_id', $this->empresa)
+            ->where($escopo, null, false);
+        if ($vinculo !== null) $consulta->where(PoliticaProcesso::condicao($this->banco, 'p', $vinculo), null, false);
+        return $consulta;
     }
 
     /** Separa a caixa de trabalho, os arquivados e a lixeira. */
@@ -211,12 +249,13 @@ class ConsultaProcessos
     }
 
     /** Reúne as pastas do setor ativo para o explorador. */
-    public function explorador(?string $vinculo): array
+    public function explorador(?string $vinculo, bool $incluirDetalhes = false): array
     {
         $consulta = $this->consultaPastas($vinculo)
             ->select('pastas.id, pastas.pasta_pai_id, pastas.nome, pastas.visibilidade')
             ->select("(EXISTS (SELECT 1 FROM pasta_processos pp WHERE pp.organizacao_id = pastas.organizacao_id AND pp.pasta_id = pastas.id)
                 OR EXISTS (SELECT 1 FROM pasta_documentos pd WHERE pd.organizacao_id = pastas.organizacao_id AND pd.pasta_id = pastas.id)) AS ocupada", false);
+        if ($incluirDetalhes) $consulta->select('pastas.criada_por, pastas.criado_em, pastas.atualizado_em');
         return ['pastasReais' => $consulta->orderBy('pastas.nome')->orderBy('pastas.id')->get()->getResultArray()];
     }
 
@@ -279,7 +318,7 @@ class ConsultaProcessos
     }
 
     /** Serializa alterações na árvore e devolve o estado gravado. */
-    public function alterarPasta(array $dados, ?string $vinculo, ?string $autor): array
+    public function alterarPasta(array $dados, ?string $vinculo, ?string $autor, bool $somenteCriador = false): array
     {
         $this->banco->transException(true);
         if (!$this->banco->transBegin()) throw new DomainException('Não foi possível iniciar a alteração.');
@@ -287,6 +326,9 @@ class ConsultaProcessos
             $this->banco->query('SELECT id FROM organizacoes WHERE id = ? FOR UPDATE', [$this->empresa]);
             $pasta = $this->consultaPastas($vinculo)->where('pastas.id', $dados['pasta'])->get()->getRowArray();
             if (!$pasta) throw new DomainException('Pasta indisponível neste setor.');
+            if ($somenteCriador && (string) $pasta['criada_por'] !== $vinculo) {
+                throw new DomainException('Você só pode alterar pastas criadas pelo seu usuário.');
+            }
 
             $agora = date('Y-m-d H:i:s');
             $id = (string) $pasta['id'];
@@ -386,7 +428,7 @@ class ConsultaProcessos
     }
 
     /** Grava a pasta no setor ativo, usando um vínculo da própria empresa. */
-    public function cadastrarPasta(string $nome, string $vinculo): ?array
+    public function cadastrarPasta(string $nome, string $vinculo, string $visibilidade = 'setor'): ?array
     {
         if ($this->setorAtivo === '') return null;
         $this->banco->transException(true);
@@ -397,7 +439,7 @@ class ConsultaProcessos
                 'organizacao_id' => $this->empresa,
                 'nome' => $this->nomeDisponivelPasta($nome, null),
                 'setor_id' => $this->setorAtivo,
-                'visibilidade' => 'setor',
+                'visibilidade' => $visibilidade,
                 'criada_por' => $vinculo,
                 'criado_em' => date('Y-m-d H:i:s'),
             ]);

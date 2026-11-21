@@ -5,7 +5,6 @@ $enderecoConfiguracoes = site_url('organizacao/' . $identificadorOrganizacao . '
 $menusSimulados = [
     'dashboard' => ['Caixa de trabalho', 'fa-inbox'],
     'processos' => ['Processos', 'fa-code-branch'],
-    'documentos' => ['Documentos', 'fa-file-lines'],
     'assinaturas' => ['Assinaturas', 'fa-signature'],
     'pastas' => ['Pastas', 'fa-folder'],
 ];
@@ -17,7 +16,7 @@ if (!$administradorSimulado) $menusSimulados += ['unidades' => ['Unidades', 'fa-
         <nav id="navegacao-principal" class="navegacao-principal" aria-label="Menu da organização">
             <?php foreach ($menusSimulados as $chave => [$rotulo, $icone]): ?>
                 <?php if (!$administradorSimulado && $chave !== 'dashboard' && !in_array($chave, $consultasPermitidas, true)) continue; ?>
-                <?php $destino = $chave === 'processos' ? site_url('organizacao/' . $identificadorOrganizacao . '/processos') : $enderecoSimulado . ($chave === 'dashboard' ? '' : '?modulo=' . $chave); ?>
+                <?php $destino = in_array($chave, ['processos', 'pastas'], true) ? site_url('organizacao/' . $identificadorOrganizacao . '/' . $chave) : $enderecoSimulado . ($chave === 'dashboard' ? '' : '?modulo=' . $chave); ?>
                 <a class="item-navegacao <?= $paginaAtiva === $chave ? 'ativo' : '' ?>" <?= $paginaAtiva === $chave ? 'aria-current="page"' : '' ?> href="<?= esc($destino, 'attr') ?>"><i class="fa-solid <?= esc($icone, 'attr') ?>" aria-hidden="true"></i><?= esc($rotulo) ?></a>
             <?php endforeach ?>
             <?php if ($administradorSimulado): ?><details class="menu-suspenso menu-configuracoes">

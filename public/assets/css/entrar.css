@@ -119,20 +119,34 @@ button:focus-visible { outline: 3px solid #b894f8; outline-offset: 3px; }
 .cartao-acesso-direto .titulo-entrada > p:last-child { margin-bottom: 22px; }
 .avatar-conta-bloqueada { overflow: hidden; }
 .avatar-conta-bloqueada img { display: block; width: 100%; height: 100%; object-fit: cover; }
-.cartao-seletores { width: min(100%, 540px); }
-.organizacao-escolha-setor { color: var(--trilha-roxo-destaque); font-weight: 600; overflow-wrap: anywhere; }
-.grupo-escolha-setor { display: grid; gap: 7px; min-width: 0; margin: 0 0 18px; }
-.grupo-escolha-setor legend { font-size: 13px; font-weight: 600; overflow-wrap: anywhere; }
+.cartao-seletores { width: min(100%, 580px); }
+.cabecalho-escolha-setor {
+    margin-bottom: 24px;
+    padding-bottom: 24px;
+    border-bottom: 1px solid var(--trilha-borda);
+    text-align: center;
+    overflow-wrap: anywhere;
+}
+.cartao-seletores .logo-entrada { width: min(100%, clamp(190px, 48vw, 250px)); margin: 0 auto 14px; }
+.organizacao-escolha-setor { margin: 0 0 8px; color: var(--trilha-roxo-destaque); font-weight: 600; }
+.instrucao-escolha-setor { margin: 0; color: var(--trilha-texto-secundario); }
+.grupo-escolha-setor { display: grid; gap: 8px; min-width: 0; margin: 0 0 22px; }
+.grupo-escolha-setor legend { margin-bottom: 8px; font-size: 13px; font-weight: 700; overflow-wrap: anywhere; }
 .opcao-escolha-setor {
     display: flex;
     align-items: center;
-    gap: 10px;
-    min-height: 44px;
-    padding: 8px 12px;
+    gap: 12px;
+    min-height: 52px;
+    padding: 10px 14px;
     border: 1px solid var(--trilha-borda);
-    border-radius: 8px;
+    border-radius: 10px;
     overflow-wrap: anywhere;
     cursor: pointer;
 }
 .opcao-escolha-setor .form-check-input { flex: none; margin: 0; }
+.nome-escolha-setor { flex: 1; min-width: 0; font-weight: 600; }
+.sigla-escolha-setor { max-width: 35%; color: var(--trilha-texto-secundario); font-size: 12px; text-align: right; }
+.opcao-escolha-setor:hover { border-color: var(--trilha-roxo); }
 .opcao-escolha-setor:has(:checked) { border-color: var(--trilha-roxo); background: #f5efff; }
+.opcao-escolha-setor:has(:focus-visible) { outline: 2px solid var(--trilha-roxo-destaque); outline-offset: 2px; }
+.cartao-seletores .botao-entrar { font-size: 14px; }

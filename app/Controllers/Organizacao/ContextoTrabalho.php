@@ -23,12 +23,12 @@ class ContextoTrabalho extends BaseController
         $setor = $this->request->getPost('setor');
         $pagina = $this->request->getPost('pagina');
         $caminho = match ($pagina) {
-            'processos' => 'processos',
+            'processos', 'pastas' => $pagina,
             'configuracoes' => 'configuracoes',
             'configuracoes/estrutura', 'configuracoes/equipe', 'configuracoes/perfis',
             'configuracoes/tipos-processo', 'configuracoes/situacoes-processo', 'configuracoes/tipos-documento' => $pagina,
             'perfil' => 'meu-perfil',
-            'documentos', 'assinaturas', 'pastas', 'unidades', 'setores' => 'dashboard?modulo=' . $pagina,
+            'documentos', 'assinaturas', 'unidades', 'setores' => 'dashboard?modulo=' . $pagina,
             default => 'dashboard',
         };
         $voltar = redirect()->to(site_url('organizacao/' . $hash . '/' . $caminho))->withCookies();
